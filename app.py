@@ -85,19 +85,6 @@ def read_any(candidates, **kwargs):
     st.error("❌ Nenhum dos arquivos foi encontrado: " + ", ".join(candidates))
     return pd.DataFrame()
 
-# === Painel de diagnóstico (sidebar) ===
-with st.sidebar:
-    st.markdown("### 🔎 Diagnóstico de dados")
-    st.write(f"**BASE**: `{BASE}`")
-    st.write(f"**DATA**: `{DATA}`")
-    try:
-        df_diag = _list_data_files()
-        if df_diag.empty:
-            st.warning("A pasta **data/** está vazia ou não existe.")
-        else:
-            st.dataframe(df_diag, use_container_width=True)
-    except Exception as e:
-        st.warning(f"Falha ao listar data/: {e}")
 
 # ---------------- Carregamento dos Dados ----------------
 # Carrega todos os arquivos usando o sistema robusto
