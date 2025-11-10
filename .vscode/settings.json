@@ -1,0 +1,4 @@
+{
+    "appService.defaultWebAppToDeploy": "/subscriptions/c6092450-f9eb-4869-b1e2-bbab9f6b1bdd/resourceGroups/appsvc_linux_brazilsouth/providers/Microsoft.Web/sites/CupomGOstreamlit",
+    "appService.deploySubpath": "."
+}

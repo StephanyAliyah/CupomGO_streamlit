@@ -1,0 +1,590 @@
+/*  VARIÁVEIS DE CORES - PALETA OFICIAL  */
+/* 
+  Aqui definimos as cores principais da nossa marca.
+  Pense nestas variáveis como as "cores oficiais" do CupomGO.
+  Se precisarmos mudar uma cor, mudamos aqui e ela atualiza em todo lugar!
+*/
+:root {
+  --pm-bg: #FFFFFF;           /* Fundo branco puro */
+  --pm-surface: #FFFFFF;      /* Superfícies de cards */
+  --pm-surface-2: #FAFAFA;    /* Superfícies secundárias */
+  --pm-primary: #1a247e;      /* Azul principal da marca - COR DO TÍTULO */
+  --pm-text: #000000;         /* Texto preto para boa legibilidade */
+  --pm-muted: #4B5563;        /* Texto secundário (cinza) */
+  --pm-border: #E5E7EB;       /* Bordas e divisórias */
+  --pm-sidebar: #1a247e;      /* Sidebar azul escuro */
+  --pm-header: #FFFFFF;       /* Cabeçalho branco */
+  --pm-sidebar-arrow: #56555c; /* Seta do sidebar cinza escuro */
+}
+
+/*  CABEÇALHO DO STREAMLIT  */
+/* 
+  O cabeçalho é a barra no topo onde ficam os controles.
+  Queremos ele branco com uma borda sutil embaixo.
+*/
+[data-testid="stHeader"] {
+    background: var(--pm-header) !important;        /* Fundo branco */
+    border-bottom: 1px solid var(--pm-border) !important;  /* Linha divisória sutil */
+}
+
+/* BOTÃO DO SIDEBAR (SETA DE EXPANDIR/RECOLHER)  */
+/* 
+  Esta é a setinha que aparece quando o sidebar está recolhido.
+  Ela fica flutuando no canto esquerdo da tela.
+*/
+[data-testid="collapsedControl"] {
+    background: var(--pm-header) !important;        /* Fundo branco */
+    color: var(--pm-sidebar-arrow) !important;      /* Seta cinza escuro */
+    border: 1px solid var(--pm-header) !important;  /* Borda sutil */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;  /* SOMBRA ADICIONADA */
+    border-radius: 8px !important;                  /* Cantos arredondados */
+    transition: all 0.3s ease-in-out !important;    /* Transição suave */
+}
+
+/* Quando passar o mouse na setinha, ela fica um pouco mais escura */
+[data-testid="collapsedControl"]:hover {
+    background: #1E3A8A !important;  /* Azul mais escuro no hover */
+    color: var(--pm-sidebar-arrow) !important;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25) !important;  /* Sombra mais forte no hover */
+    transform: translateY(-2px) !important;  /* Efeito de levantar */
+}
+
+/* Garante que o ícone da seta fique cinza escuro */
+[data-testid="collapsedControl"] svg {
+    color: var(--pm-sidebar-arrow) !important;
+    filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.3)) !important;  /* Sombra no ícone */
+}
+
+/* FUNDO PRINCIPAL DA APLICAÇÃO */
+/* 
+  Aqui definimos o fundo de TODA a aplicação.
+  Queremos um branco limpo em todas as áreas.
+*/
+.stApp, html, body,
+[data-testid="stAppViewContainer"],
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+.block-container {
+    background: #ffffff !important;  /* Fundo branco em toda a aplicação */
+    color: #000000 !important;       /* Texto preto por padrão */
+}
+
+/*  MENU DOS 3 PONTINHOS (MENU PRINCIPAL)  */
+/* 
+  Este é o menu que aparece quando clica nos 3 pontinhos no canto superior direito.
+  Queremos que ele tenha um visual moderno e contrastante.
+*/
+
+/* Container principal do menu */
+[data-testid="stMainMenu"] > div,
+[data-testid="stMainMenuPopover"] > div,
+[data-baseweb="popover"] [role="listbox"] {
+    background: #1a247e !important;      /* Fundo azul da marca */
+    color: #000000 !important;           /* Texto preto */
+    border: 1px solid #E5E7EB !important; /* Borda sutil */
+    border-radius: 8px !important;       /* Cantos arredondados */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;  /* Sombra suave */
+}
+
+/* Itens individuais do menu */
+[data-testid="stMainMenu"] li,
+[data-testid="stMainMenu"] button,
+[data-testid="stMainMenu"] span,
+[data-testid="stMainMenu"] div,
+[data-testid="stMainMenu"] a,
+[data-baseweb="menu"] li,
+[data-baseweb="menu"] button,
+[data-baseweb="menu"] span,
+[data-baseweb="menu"] div {
+    background: #FFFFFF !important;  /* Fundo branco nos itens */
+    color: #000000 !important;       /* Texto preto */
+    font-size: 14px !important;      /* Tamanho de fonte confortável */
+}
+
+/* Efeito hover nos itens do menu */
+[data-testid="stMainMenu"] li:hover,
+[data-testid="stMainMenu"] button:hover,
+[data-baseweb="menu"] li:hover,
+[data-baseweb="menu"] button:hover {
+    background: #f8f9fa !important;  /* Cinza bem clarinho no hover */
+    color: #000000 !important;
+}
+
+/* Textos específicos dentro do menu */
+[data-testid="stMainMenu"] [class*="label"],
+[data-testid="stMainMenu"] [class*="text"],
+[data-baseweb="menu"] [class*="label"],
+[data-baseweb="menu"] [class*="text"] {
+    color: #000000 !important;  /* Garante texto preto */
+}
+
+/* Ícones dentro do menu (como ícones de download, settings, etc) */
+[data-testid="stMainMenu"] svg,
+[data-baseweb="menu"] svg {
+    color: #000000 !important;  /* Ícones pretos */
+}
+
+/*  SIDEBAR - MENU LATERAL  */
+/* 
+  O sidebar é nosso menu de navegação principal.
+  Ele fica em azul escuro com texto branco para bom contraste.
+*/
+[data-testid="stSidebar"] {
+    border-right: 1px solid #E5E7EB !important;  /* Linha divisória à direita */
+    background: var(--pm-sidebar) !important;     /* Fundo azul escuro */
+    color: #FFFFFF !important;                   /* Texto branco */
+    padding: 1rem .6rem;                         /* Espaçamento interno */
+}
+
+/* Garante que TODO o texto dentro do sidebar fique branco */
+[data-testid="stSidebar"] * { 
+    color: #FFFFFF !important; 
+}
+
+/* Textos específicos no sidebar (títulos, parágrafos) */
+[data-testid="stSidebar"] .stMarkdown,
+[data-testid="stSidebar"] .stMarkdown p,
+[data-testid="stSidebar"] .stMarkdown div {
+    color: #FFFFFF !important;  /* Texto branco */
+}
+
+/*  BOTÕES DO SIDEBAR */
+/* 
+  Os botões de navegação dentro do sidebar.
+  Eles ficam semi-transparentes e com efeitos suaves.
+*/
+[data-testid="stSidebar"] .stButton > button {
+    background: rgba(255, 255, 255, 0.1) !important;  /* Branco semi-transparente */
+    color: #FFFFFF !important;                        /* Texto branco */
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;  /* Borda sutil */
+    border-radius: 10px !important;                   /* Cantos bem arredondados */
+    box-shadow: 0 2px 6px rgba(0,0,0,.1) !important; /* Sombra suave */
+    width: 100%;                                      /* Ocupa toda a largura */
+    margin: 4px 0;                                    /* Espaço entre botões */
+    transition: all 0.3s ease-in-out !important;      /* Transição suave */
+}
+
+/* Efeito hover nos botões do sidebar */
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: rgba(255, 255, 255, 0.2) !important;  /* Fica mais opaco */
+    color: #FFFFFF !important;
+    border-color: rgba(255, 255, 255, 0.4) !important; /* Borda mais visível */
+    transform: translateY(-2px);                      /* Levanta um pouco */
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2) !important;  /* Sombra mais forte */
+}
+
+/*  BARRAS DE PROGRESSO E ANIMAÇÕES  */
+/* 
+  As barrinhas de carregamento e progresso ficam pretas
+  para combinar com nosso tema de texto preto.
+*/
+.stProgress > div > div > div > div {
+    background-color: #000000 !important;  /* Barras de progresso pretas */
+}
+
+/* BOTÕES PRINCIPAIS DA APLICAÇÃO */
+/* 
+  Botões gerais em toda a aplicação (fora do sidebar).
+  Eles têm o estilo "outline" - borda azul com fundo branco.
+*/
+.stButton > button {
+    background: #FFFFFF !important;    /* Fundo branco */
+    color: #1a247e !important;         /* Texto azul */
+    border: 1px solid #1a247e !important;  /* Borda azul */
+    border-radius: 8px !important;     /* Cantos arredondados */
+    padding: 8px 16px !important;      /* Espaçamento interno confortável */
+    font-weight: 600 !important;       /* Texto em negrito */
+    transition: all 0.3s ease-in-out !important;  /* Transições suaves */
+}
+
+/* Efeito hover nos botões principais */
+.stButton > button:hover {
+    background: #1a247e !important;    /* Inverte: fundo azul */
+    color: #FFFFFF !important;         /* Texto branco */
+    transform: translateY(-2px);       /* Efeito de levantar */
+    box-shadow: 0 4px 12px rgba(12,45,107,0.3) !important;  /* Sombra azul */
+}
+
+/* BOTÕES DE FORMULÁRIO  */
+/* 
+  Botões específicos de formulários (como login, cadastro).
+  Eles têm o mesmo estilo dos botões principais mas ocupam largura total.
+*/
+.stFormSubmitButton > button {
+    background: #FFFFFF !important;    /* Fundo branco */
+    color: #1a247e !important;         /* Texto azul */
+    border: 1px solid #1a247e !important;  /* Borda azul */
+    border-radius: 8px !important;     /* Cantos arredondados */
+    padding: 8px 16px !important;      /* Espaçamento interno */
+    font-weight: 600 !important;       /* Texto em negrito */
+    transition: all 0.3s ease-in-out !important;  /* Transições suaves */
+    width: 100% !important;            /* Ocupa toda a largura disponível */
+}
+
+/* Efeito hover nos botões de formulário */
+.stFormSubmitButton > button:hover {
+    background: #1a247e !important;    /* Inverte: fundo azul */
+    color: #FFFFFF !important;         /* Texto branco */
+    transform: translateY(-2px);       /* Efeito de levantar */
+    box-shadow: 0 4px 12px rgba(12,45,107,0.3) !important;  /* Sombra azul */
+}
+
+/*  SELECTBOX (MENUS SUSPENSOS)  */
+/* 
+  Os menus suspensos usados no login e simulação.
+  Eles precisam ser claros e legíveis.
+*/
+
+/* Caixa do selectbox quando fechada */
+[data-testid="stSelectbox"] [role="combobox"] {
+    background: #FFFFFF !important;    /* Fundo branco */
+    color: #000000 !important;         /* Texto preto */
+    border: 1px solid #E5E7EB !important;  /* Borda cinza */
+    border-radius: 8px !important;     /* Cantos arredondados */
+    min-height: 38px;                  /* Altura mínima confortável */
+}
+
+/* Seta do selectbox */
+[data-testid="stSelectbox"] svg { 
+    color: #111111 !important;         /* Seta preta */
+}
+
+/* Menu suspenso quando aberto */
+[data-baseweb="popover"] [data-baseweb="menu"] {
+    background: #FFFFFF !important;    /* Fundo branco */
+    color: #000000 !important;         /* Texto preto */
+    border: 1px solid #E5E7EB !important;  /* Borda cinza */
+    border-radius: 8px !important;     /* Cantos arredondados */
+}
+
+/* Opções individuais do menu suspenso */
+[data-baseweb="popover"] [data-baseweb="menu"] div[role="option"] { 
+    color: #000000 !important;         /* Texto preto */
+    background: #FFFFFF !important;    /* Fundo branco */
+}
+
+/* Efeito hover nas opções do menu */
+[data-baseweb="popover"] [data-baseweb="menu"] div[role="option"]:hover {
+    background: #f8f9fa !important;    /* Cinza bem clarinho no hover */
+}
+
+/* FORMULÁRIOS */
+/* 
+  Container principal dos formulários (login, cadastro, etc).
+  Eles ficam com um visual de card destacado.
+*/
+[data-testid="stForm"] > div:first-child {
+    border: 1px solid #E5E7EB !important;  /* Borda sutil */
+    background: #ffffff !important;         /* Fundo branco */
+    border-radius: 12px !important;        /* Cantos arredondados */
+    padding: 16px !important;              /* Espaçamento interno */
+    box-shadow: 0 6px 18px rgba(0,0,0,.06) !important;  /* Sombra suave */
+}
+
+/* PLACEHOLDERS DOS INPUTS */
+/* 
+  Texto de dica dentro dos campos de input.
+  Eles ficam em cinza para não competir com o texto real.
+*/
+input::placeholder, textarea::placeholder {
+    color: #9CA3AF !important;  /* Cinza médio para placeholders */
+    opacity: 1 !important;      /* Garante que não fique transparente */
+}
+
+/* LABELS E INPUTS CLAROS */
+/* 
+  Garantimos que todos os labels e inputs tenham bom contraste
+  e sejam fáceis de ler.
+*/
+
+/* Labels de todos os tipos de input */
+.stTextInput label, .stTextInput p, .stTextInput div,
+.stSelectbox label, .stNumberInput label, .stDateInput label,
+.stMultiSelect label, .stTextArea label, .stRadio label, .stSlider label {
+    color: #000000 !important;  /* Labels em preto */
+}
+
+/* Campos de texto e textarea */
+.stTextInput input, .stTextArea textarea, .stDateInput input,
+.stTextInput > div > div > input,
+.stTextArea > div > div > textarea {
+    color: #000000 !important;          /* Texto digitado preto */
+    background: #ffffff !important;     /* Fundo branco */
+    border: 1px solid #E5E7EB !important;  /* Borda cinza */
+    border-radius: 8px !important;      /* Cantos arredondados */
+}
+
+/*  LINHA DE DIGITAÇÃO EM PRETO */
+/* 
+  A barrinha piscante (cursor) e os efeitos de foco
+  ficam pretos para combinar com nosso tema.
+*/
+
+/* Efeito quando o input está em foco (selecionado) */
+.stTextInput input:focus, .stTextArea textarea:focus,
+.stTextInput > div > div > input:focus,
+.stTextArea > div > div > textarea:focus {
+    border-color: #000000 !important;          /* Borda preta */
+    box-shadow: 0 0 0 2px rgba(0,0,0,0.1) !important;  /* Sombra de foco */
+    outline: 1px solid #000000 !important;     /* Contorno preto */
+}
+
+/* Linha inferior quando o input está focado (estilo Material) */
+.stTextInput > div > div:focus-within {
+    border-bottom: 1px solid #000000 !important;  /* Linha preta embaixo */
+}
+
+/* Cursor piscante (caret) preto */
+.stTextInput input, .stTextArea textarea {
+    caret-color: #000000 !important;  /* Aquela barrinha que pisca fica preta */
+}
+
+/* Campos numéricos */
+.stNumberInput input {
+    background: #FFFFFF !important;    /* Fundo branco */
+    color: #000000 !important;         /* Texto preto */
+    border: 1px solid #E5E7EB !important;  /* Borda cinza */
+    border-radius: 8px !important;     /* Cantos arredondados */
+}
+
+/* Ícones dos campos numéricos (setinhas de aumentar/diminuir) */
+.stNumberInput [data-baseweb="input"] svg { 
+    color: #111111 !important;         /* Ícones pretos */
+}
+
+/* ABAS (TABS) */
+/* 
+  As abas que separam diferentes seções (como em Indicadores Executivos).
+  Queremos o texto preto para boa legibilidade.
+*/
+[data-testid="stTabs"] button[role="tab"] { 
+    color: #000000 !important;  /* Texto das abas em preto */
+}
+
+/* Texto específico dentro das abas */
+[data-testid="stTabs"] button[role="tab"] > div > p,
+[data-testid="stTabs"] button[role="tab"] span,
+[data-testid="stTabs"] button[role="tab"] div { 
+    color: #000000 !important;  /* Garante texto preto */
+}
+
+/* Aba selecionada e efeito hover */
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"],
+[data-testid="stTabs"] button[role="tab"]:hover { 
+    color: #000000 !important;  /* Mantém preto quando selecionada/ hover */
+}
+
+/*  INÍCIO DA SEÇÃO MODIFICADA  */
+
+/*  TABELAS CLARAS E LEGÍVEIS */
+/* 
+  Esta seção foi especialmente modificada para garantir que
+  todas as tabelas fiquem com bom contraste e sejam fáceis de ler.
+*/
+
+/* Tabelas básicas do Streamlit */
+[data-testid="stTable"] table {
+  background: #FFFFFF !important;    /* Fundo branco */
+  color: #000000 !important;         /* Texto preto */
+  border-collapse: collapse !important;  /* Bordas colapsadas */
+}
+
+/* Células da tabela básica */
+[data-testid="stTable"] table th,
+[data-testid="stTable"] table td {
+  border: 1px solid #111111 !important;  /* Bordas pretas definidas */
+}
+
+/* Container principal do stDataFrame (sua regra original) */
+[data-testid="stDataFrame"] {
+  background: #FFFFFF !important;    /* Fundo branco */
+  color: #000000 !important;         /* Texto preto */
+  border: 1px solid #E5E7EB !important;  /* Borda cinza ao redor */
+  border-radius: 8px !important;     /* Cantos arredondados */
+}
+
+/* Cabeçalhos da tabela DataFrame */
+[data-testid="stDataFrame"] th {
+    background-color: #FFFFFF !important;  /* Fundo branco */
+    color: #000000 !important;             /* Texto preto */
+    border-color: #E5E7EB !important;      /* Bordas cinza */
+}
+
+/* Células do corpo da tabela DataFrame */
+[data-testid="stDataFrame"] td {
+    background-color: #FFFFFF !important;  /* Fundo branco */
+    color: #000000 !important;             /* Texto preto */
+    border-color: #E5E7EB !important;      /* Bordas cinza */
+}
+
+/* Remove o efeito zebrado (linhas alternadas) que pode vir do tema */
+[data-testid="stDataFrame"] .stDataFrameAlternatingRows tr:nth-child(even) td,
+[data-testid="stDataFrame"] .stDataFrameAlternatingRows tr:nth-child(odd) td {
+     background-color: #FFFFFF !important;  /* Todas as linhas brancas */
+     color: #000000 !important;             /* Texto preto */
+}
+
+/* Efeito hover nas linhas da tabela */
+[data-testid="stDataFrame"] tr:hover td {
+    background-color: #f5f5f5 !important;  /* Cinza bem clarinho no hover */
+    color: #000000 !important;             /* Texto continua preto */
+}
+
+/* FIM DA SEÇÃO MODIFICADA */
+
+
+/*  ALERTAS E MENSAGENS DE STATUS  */
+/* 
+  Caixas de alerta (sucesso, erro, aviso, info).
+  Elas ficam com fundo cinza claro e texto preto.
+*/
+.stAlert { 
+    background: #f8f9fa !important;   /* Fundo cinza bem clarinho */
+    color: #000000 !important;        /* Texto preto */
+    border: 1px solid #E5E7EB !important;  /* Borda sutil */
+    border-radius: 8px !important;    /* Cantos arredondados */
+}
+
+/*  GRÁFICOS PLOTLY  */
+/* 
+  Garantimos que todos os textos nos gráficos Plotly
+  fiquem pretos para boa legibilidade.
+*/
+.js-plotly-plot .plotly, 
+.js-plotly-plot .plotly text,
+.js-plotly-plot .plotly .legendtext,   /* Texto da legenda */
+.js-plotly-plot .plotly .xtitle,       /* Título do eixo X */
+.js-plotly-plot .plotly .ytitle,       /* Título do eixo Y */
+.js-plotly-plot .plotly .gtitle {      /* Título do gráfico */
+    color: #000000 !important;         /* Texto preto */
+    fill: #000000 !important;          /* Preenchimento de texto preto */
+}
+
+/*  TÍTULO "CUPOMGO" - COR ESPECIAL  */
+/* 
+  O título principal da aplicação fica na cor azul da marca.
+  Esta é uma das únicas exceções onde não usamos preto.
+*/
+.pm-hero .pm-title { 
+    font-weight: 800;                  /* Negrito bem forte */
+    color: #1a247e !important;         /* AZUL DA MARCA - COR ESPECIAL */
+    font-size: 20px;                   /* Tamanho destacado */
+}
+
+/*  COMPONENTES PERSONALIZADOS  */
+/* 
+  Estas são classes que usamos no Python para criar
+  componentes visuais personalizados.
+*/
+
+/* Container Hero (cabeçalho de páginas) */
+.pm-hero {
+    border: 1px solid #E5E7EB;                            /* Borda sutil */
+    background: linear-gradient(120deg, rgba(98,195,112,.08), rgba(238,220,130,.06));  /* Gradiente sutil */
+    padding: 14px 16px;                                   /* Espaçamento interno */
+    border-radius: 16px;                                  /* Cantos bem arredondados */
+    box-shadow: 0 8px 24px rgba(0,0,0,.06);              /* Sombra suave */
+    margin-bottom: 16px;                                  /* Espaço abaixo */
+}
+
+/* Subtítulo do Hero */
+.pm-hero .pm-sub { 
+    color: #4B5563;         /* Cinza para texto secundário */
+    font-size: 13px;        /* Um pouco menor que o título */
+}
+
+/* Cards de métricas (KPIs) */
+.pm-card {
+    background: #FFFFFF;                    /* Fundo branco */
+    border: 1px solid #E5E7EB;              /* Borda sutil */
+    border-radius: 14px;                    /* Cantos arredondados */
+    padding: 12px 14px;                     /* Espaçamento interno */
+    text-align: center;                     /* Texto centralizado */
+    box-shadow: 0 6px 18px rgba(0,0,0,.06); /* Sombra suave */
+    transition: all 0.3s ease-in-out;       /* Transição para hover */
+}
+
+/* Efeito hover nos cards */
+.pm-card:hover {
+    transform: translateY(-3px);                       /* Levanta o card */
+    box-shadow: 0 8px 25px rgba(12,45,107,0.15);      /* Sombra mais pronunciada */
+}
+
+/* Título das métricas (ex: "Total de Cupons") */
+.pm-metric-title { 
+    font-weight: 600;         /* Negrito médio */
+    color: #4B5563;           /* Cinza para texto secundário */
+    margin-bottom: 6px;       /* Espaço abaixo */
+}
+
+/* Valor das métricas (ex: "1.234") */
+.pm-metric-value { 
+    font-size: 22px;          /* Tamanho grande para destaque */
+    font-weight: 800;         /* Negrito forte */
+    color: #000;              /* Preto para máximo contraste */
+}
+
+/* Container de autenticação (login/cadastro) */
+.pm-auth {
+    background: white !important;                 /* Fundo branco */
+    color: #000000 !important;                   /* Texto preto */
+    padding: 2rem;                               /* Espaçamento generoso */
+    border-radius: 12px;                         /* Cantos arredondados */
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);     /* Sombra para destaque */
+    margin: 2rem auto;                           /* Centralizado com margem */
+    max-width: 520px;                           /* Largura máxima */
+}
+
+/* Garante que todo o texto dentro do auth fique preto */
+.pm-auth * { 
+    color: #000000 !important; 
+}
+
+/* Inputs dentro do auth */
+.pm-auth input, .pm-auth textarea {
+    background: white !important;        /* Fundo branco */
+    color: #000000 !important;           /* Texto preto */
+    border: 1px solid #E5E7EB !important;  /* Borda cinza */
+}
+
+/* Botões dentro do auth */
+.pm-auth .stButton > button {
+    background: white !important;        /* Fundo branco */
+    color: #1a247e !important;           /* Texto azul */
+    border: 1px solid #1a247e !important;  /* Borda azul */
+    border-radius: 10px !important;      /* Cantos arredondados */
+    padding: 8px 16px !important;        /* Espaçamento interno */
+    font-weight: 600 !important;         /* Negrito */
+    margin: 10px 0;                      /* Espaço entre botões */
+}
+
+/* Efeito hover nos botões do auth */
+.pm-auth .stButton > button:hover {
+    background: #1a247e !important;      /* Fundo azul */
+    color: white !important;             /* Texto branco */
+    border-color: #1a247e !important;    /* Borda azul */
+}
+
+/*  TOOLBAR DO STREAMLIT  */
+/* Barra de ferramentas (normalmente invisível) */
+[data-testid="stToolbar"] {
+    background: var(--pm-header) !important;  /* Fundo branco */
+}
+
+/*  DECORAÇÃO DO STREAMLIT  */
+/* Elementos decorativos do Streamlit */
+[data-testid="stDecoration"] {
+    background: var(--pm-header) !important;  /* Fundo branco */
+}
+
+/*  ESTILOS ADICIONAIS PARA GARANTIR O TÍTULO CUPOMGO  */
+/* 
+  Estas regras garantem que em qualquer contexto,
+  o texto "CupomGO" sempre apareça na cor azul da marca.
+*/
+h1:contains("CupomGO"),
+h2:contains("CupomGO"),
+h3:contains("CupomGO"),
+[class*="title"]:contains("CupomGO") {
+    color: #1a247e !important;  /* Azul da marca para o nome CupomGO */
+}
