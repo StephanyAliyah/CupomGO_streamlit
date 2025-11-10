@@ -45,6 +45,41 @@ def _find_file_case_insensitive(filename: str):
             return q
     return None
 
+@st.cache_data(show_spinner=False)
+def load_csv(name, **kwargs):
+    """
+    Carrega arquivos CSV da pasta data com tratamento de erros e cache
+    """
+    p = _find_file_case_insensitive(name)
+    if p is None:
+        st.error(f"❌ Arquivo **{name}** não encontrado em **{DATA}**.\n"
+                 f"Coloque o arquivo na pasta **data/** (mesmo nível do app.py).")
+        return pd.DataFrame()
+
+    try:
+        return pd.read_csv(p, **kwargs)
+    except Exception as e:
+        st.error(f"❌ Erro ao ler **{p.name}**: {e}")
+        return pd.DataFrame()
+
+@st.cache_data(show_spinner=False)
+def load_xlsx(name, sheet_name=0, **kwargs):
+    """
+    Carrega arquivos Excel da pasta data com tratamento de erros e cache
+    """
+    p = _find_file_case_insensitive(name)
+    if p is None:
+        st.error(f"❌ Arquivo **{name}** não encontrado em **{DATA}**.\n"
+                 f"Coloque o arquivo na pasta **data/** (mesmo nível do app.py).")
+        return pd.DataFrame()
+
+    try:
+        # engine explícita para ambientes server
+        return pd.read_excel(p, sheet_name=sheet_name, engine="openpyxl", **kwargs)
+    except Exception as e:
+        st.error(f"❌ Erro ao ler **{p.name}**: {e}")
+        return pd.DataFrame()
+
 def read_table(filename: str, sheet_name=0, **kwargs):
     """
     Lê .xlsx/.xls com openpyxl; .csv com pandas. Para execução se não achar.
@@ -85,7 +120,6 @@ def read_any(candidates, **kwargs):
     st.error("❌ Nenhum dos arquivos foi encontrado: " + ", ".join(candidates))
     return pd.DataFrame()
 
-
 # ---------------- Carregamento dos Dados ----------------
 # Carrega todos os arquivos usando o sistema robusto
 # CORREÇÃO: Tenta diferentes variações de nome para conquista.csv
@@ -95,52 +129,39 @@ except:
     conquista = pd.DataFrame()
 
 try:
-    cupom_usos = read_table("cupom_usos.csv")
+    cupom_usos = load_csv("cupom_usos.csv")
 except:
     cupom_usos = pd.DataFrame()
 
 try:
-    economia = read_table("economia.csv")
+    economia = load_csv("economia.csv")
 except:
     economia = pd.DataFrame()
 
 try:
-    usuarios = read_table("usuarios.csv")
+    usuarios = load_csv("usuarios.csv")
 except:
     usuarios = pd.DataFrame()
 
 try:
-    lojas = read_table("lojas.xlsx")
+    lojas = load_xlsx("lojas.xlsx")
 except:
     lojas = pd.DataFrame()
 
 try:
-    pedestres = read_table("pedestres.xlsx")
+    pedestres = load_xlsx("pedestres.xlsx")
 except:
     pedestres = pd.DataFrame()
 
 try:
-    players = read_table("players.xlsx")
+    players = load_xlsx("players.xlsx")
 except:
     players = pd.DataFrame()
 
 try:
-    transacoes = read_table("transacoes.xlsx")
+    transacoes = load_xlsx("transacoes.xlsx")
 except:
     transacoes = pd.DataFrame()
-
-# ---------------- Funções de Carregamento de Dados ----------------
-def load_csv(name, **kwargs):
-    """
-    Carrega arquivos CSV da pasta data com tratamento de erros
-    """
-    return read_table(name, **kwargs)
-
-def load_xlsx(name, sheet_name=0, **kwargs):
-    """
-    Carrega arquivos Excel da pasta data com tratamento de erros
-    """
-    return read_table(name, sheet_name=sheet_name, **kwargs)
 
 # ---------------- Carregamento dos Dados ----------------
 # Atualiza as variáveis principais com os dados carregados
@@ -416,9 +437,10 @@ def hash_password(pwd: str) -> str:
     """
     return hashlib.sha256(pwd.encode("utf-8")).hexdigest()
 
+@st.cache_data(show_spinner=False)
 def load_users() -> pd.DataFrame:
     """
-    Carrega a lista de usuários do arquivo CSV.
+    Carrega a lista de usuários do arquivo CSV com cache.
     Se o arquivo não existe, cria uma estrutura vazia.
     """
     if not os.path.exists(USERS_PATH):
@@ -496,6 +518,7 @@ def save_user(nome: str, email: str, pwd: str):
     new = pd.DataFrame([new_data])
     df = pd.concat([df, new], ignore_index=True)
     df.to_csv(USERS_PATH, index=False, encoding="utf-8")
+    st.cache_data.clear()  # Limpa o cache para refletir as mudanças
 
 def check_login(email: str, pwd: str) -> bool:
     """
@@ -569,6 +592,7 @@ def atualizar_usuario_gamificacao(email: str, cupom_data: dict):
     
     # Salva todas as mudanças
     df.to_csv(USERS_PATH, index=False, encoding="utf-8")
+    st.cache_data.clear()  # Limpa o cache para refletir as mudanças
     return conquistas
 
 # ---------------- Carregamento de Dados com Cache ---------------
