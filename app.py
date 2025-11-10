@@ -4,158 +4,8 @@ import pandas as pd     # Para trabalhar com tabelas e dados
 import numpy as np      # Para cálculos matemáticos
 import plotly.express as px  # Para criar gráficos bonitos
 import plotly.graph_objects as go  # Para gráficos mais customizados
-import datetime, os, hashlib, re  # Utilitários do Python
+import datetime, os, hashlib, re, pathlib  # Utilitários do Python
 from PIL import Image, UnidentifiedImageError  # Para trabalhar com imagens
-from pathlib import Path
-
-# === Caminhos robustos (Azure/Linux) ===
-BASE = Path(__file__).resolve().parent
-DATA = (BASE / "data").resolve()
-
-# === Diagnóstico: lista o que o servidor realmente tem em /data ===
-@st.cache_data(show_spinner=False)
-def _list_data_files():
-    items = []
-    if DATA.exists():
-        for p in sorted(DATA.iterdir()):
-            if p.is_file():
-                items.append({
-                    "arquivo": p.name,
-                    "tamanho_kb": round(p.stat().st_size/1024, 1)
-                })
-    return pd.DataFrame(items)
-
-def _find_file_case_insensitive(filename: str):
-    """Procura filename em DATA ignorando maiúsculas/minúsculas."""
-    p = DATA / filename
-    if p.exists():
-        return p
-    target = filename.lower()
-    for q in DATA.glob("*"):
-        if q.is_file() and q.name.lower() == target:
-            return q
-    return None
-
-def read_table(filename: str, sheet_name=0, **kwargs):
-    """
-    Lê .xlsx/.xls com openpyxl; .csv com pandas. Para execução se não achar.
-    kwargs: passam para read_excel/read_csv (ex.: dtype, parse_dates, sep, encoding)
-    """
-    p = _find_file_case_insensitive(filename)
-    if p is None:
-        st.error(f"❌ Arquivo **{filename}** não encontrado em **{DATA}**.\n"
-                 f"Coloque o arquivo na pasta **data/** (mesmo nível do app.py).")
-        st.stop()
-
-    ext = p.suffix.lower()
-    try:
-        if ext in (".xlsx", ".xls"):
-            # engine explícita para ambientes server
-            return pd.read_excel(p, sheet_name=sheet_name, engine="openpyxl", **kwargs)
-        elif ext == ".csv":
-            return pd.read_csv(p, **kwargs)
-        else:
-            st.error(f"❌ Extensão não suportada: **{ext}** ({p.name}). "
-                     f"Use .xlsx/.xls/.csv.")
-            st.stop()
-    except Exception as e:
-        st.error(f"❌ Erro ao ler **{p.name}**: {e}")
-        st.stop()
-
-# === (Opcional) Leitor com múltiplos candidatos de nome ===
-def read_any(candidates, **kwargs):
-    """
-    Tenta ler na ordem. Exemplo:
-    read_any(['transacoes.xlsx','transações.xlsx','transacoes.csv'])
-    """
-    for name in candidates:
-        p = _find_file_case_insensitive(name)
-        if p is not None:
-            return read_table(p.name, **kwargs)
-    st.error("❌ Nenhum dos arquivos foi encontrado: " + ", ".join(candidates))
-    st.stop()
-
-# === Painel de diagnóstico (sidebar) ===
-with st.sidebar:
-    st.markdown("### 🔎 Diagnóstico de dados")
-    st.write(f"**BASE**: `{BASE}`")
-    st.write(f"**DATA**: `{DATA}`")
-    try:
-        df_diag = _list_data_files()
-        if df_diag.empty:
-            st.warning("A pasta **data/** está vazia ou não existe.")
-        else:
-            st.dataframe(df_diag, use_container_width=True)
-    except Exception as e:
-        st.warning(f"Falha ao listar data/: {e}")
-
-# ---------------- Carregamento dos Dados ----------------
-# Carrega todos os arquivos usando o sistema robusto
-try:
-    conquista = read_table("conquista.csv")
-except:
-    conquista = pd.DataFrame()
-
-try:
-    cupom_usos = read_table("cupom_usos.csv")
-except:
-    cupom_usos = pd.DataFrame()
-
-try:
-    economia = read_table("economia.csv")
-except:
-    economia = pd.DataFrame()
-
-try:
-    usuarios = read_table("usuarios.csv")
-except:
-    usuarios = pd.DataFrame()
-
-try:
-    lojas = read_table("lojas.xlsx")
-except:
-    lojas = pd.DataFrame()
-
-try:
-    pedestres = read_table("pedestres.xlsx")
-except:
-    pedestres = pd.DataFrame()
-
-try:
-    players = read_table("players.xlsx")
-except:
-    players = pd.DataFrame()
-
-try:
-    transacoes = read_table("transacoes.xlsx")
-except:
-    transacoes = pd.DataFrame()
-
-# ---------------- Funções de Carregamento de Dados ----------------
-def load_csv(name, **kwargs):
-    """
-    Carrega arquivos CSV da pasta data com tratamento de erros
-    """
-    return read_table(name, **kwargs)
-
-def load_xlsx(name, sheet_name=0, **kwargs):
-    """
-    Carrega arquivos Excel da pasta data com tratamento de erros
-    """
-    return read_table(name, sheet_name=sheet_name, **kwargs)
-
-# ---------------- Carregamento dos Dados ----------------
-# Atualiza as variáveis principais com os dados carregados
-df_transacoes = transacoes if not transacoes.empty else pd.DataFrame()
-df_lojas = lojas if not lojas.empty else pd.DataFrame()
-df_players = players if not players.empty else pd.DataFrame()
-df_pedestres = pedestres if not pedestres.empty else pd.DataFrame()
-df_economia = economia if not economia.empty else pd.DataFrame()
-
-# Antes de plotar, cheque se veio
-if not df_transacoes.empty:
-    # ... seus gráficos aqui
-    pass
 
 # Cor principal da nossa marca - usada em botões, títulos e gráficos
 PRIMARY = "#0C2D6B"
@@ -175,7 +25,7 @@ def inject_css_file(path="assets/styles.css"):
     """
     try:
         # Lê o arquivo CSS como se fosse um texto normal
-        css = Path(path).read_text(encoding="utf-8")
+        css = pathlib.Path(path).read_text(encoding="utf-8")
         # Aplica os estilos na página
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
     except Exception as e:
@@ -187,12 +37,12 @@ inject_css_file()
 
 # ---------------- Onde Guardamos Nossos Dados ----------------
 # São como as gavetas onde guardamos informações importantes
-PATH_TX = DATA / "transacoes.xlsx" if _find_file_case_insensitive("transacoes.xlsx") else "assets/transacoes.xlsx"
-PATH_STORES = DATA / "lojas.xlsx" if _find_file_case_insensitive("lojas.xlsx") else "assets/lojas.xlsx"
-USERS_PATH = DATA / "usuarios.csv" if _find_file_case_insensitive("usuarios.csv") else "assets/usuarios.csv"
-ECON_PATH = DATA / "economia.csv" if _find_file_case_insensitive("economia.csv") else "assets/economia.csv"
-CUPOM_USOS_PATH = DATA / "cupom_usos.csv" if _find_file_case_insensitive("cupom_usos.csv") else "assets/cupom_usos.csv"
-CONQUISTAS_PATH = DATA / "conquistas.csv" if _find_file_case_insensitive("conquistas.csv") else "assets/conquistas.csv"
+PATH_TX         = "assets/transacoes.xlsx"      # Histórico de cupons usados
+PATH_STORES     = "assets/lojas.xlsx"           # Lista de lojas parceiras
+USERS_PATH      = "assets/usuarios.csv"         # Cadastro de usuários
+ECON_PATH       = "assets/economia.csv"         # Dados da economia brasileira
+CUPOM_USOS_PATH = "assets/cupom_usos.csv"       # Registro de cada cupom usado
+CONQUISTAS_PATH = "assets/conquistas.csv"       # Conquistas dos usuários
 
 # ---------------- Sistema de Gamificação ----------------
 class SistemaGamificacao:
@@ -358,7 +208,7 @@ def style_fig(fig, y_fmt=None, x_fmt=None):
     fig.update_layout(
         font=dict(color="black", size=12),  # Fonte preta e legível
         paper_bgcolor="white",     # Fundo branco ao redor do gráfico
-        plot_bgcolor="white",      # Fundo blanco dentro do gráfico
+        plot_bgcolor="white",      # Fundo branco dentro do gráfico
         hovermode="x unified",     # Mostra dados de todas as linhas ao passar o mouse
         hoverlabel=dict(
             bgcolor="white",       # Fundo branco nas dicas
@@ -573,7 +423,7 @@ def atualizar_usuario_gamificacao(email: str, cupom_data: dict):
 
 # ---------------- Carregamento de Dados com Cache ---------------
 @st.cache_data(show_spinner=False)
-def load_xlsx_cached(path):
+def load_xlsx(path):
     """
     Carrega arquivos Excel com cache.
     Cache significa que não precisa ler o arquivo toda vez - fica mais rápido!
@@ -584,7 +434,7 @@ def load_xlsx_cached(path):
         return pd.DataFrame()
 
 @st.cache_data(show_spinner=False)
-def load_csv_cached(path):
+def load_csv(path):
     """
     Carrega arquivos CSV com cache.
     """
@@ -691,7 +541,7 @@ NAV_ITEMS = [
     ("Financeiro", "fin"),
     ("Painel Econômico", "eco"),
     ("Uso de Cupons", "sim"),
-    ("Sobre", "sobre"),
+    ("Sobre", "sobre"),  # ← NOVA PÁGINA ADICIONADA
 ]
 
 def sidebar_nav():
@@ -1285,7 +1135,7 @@ def page_kpis(tx):
             df_copy = df.copy()
             if 'Mês' not in df_copy.columns:
                 df_copy[dcol] = pd.to_datetime(df_copy[dcol])
-                df_copy['Mês'] = df_copy[dcol].dt.to_period('M').astize(str)
+                df_copy['Mês'] = df_copy[dcol].dt.to_period('M').astype(str)
             
             if 'lucro_bruto' in df_copy.columns:
                 # Cálculo real se temos dados de lucro
@@ -1575,7 +1425,7 @@ def page_financeiro(tx):
 
     # Prepara dados mensais
     df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
-    df["Mês"] = df[dcol].dt.to_period("M").astize(str)
+    df["Mês"] = df[dcol].dt.to_period("M").astype(str)
 
     mensal = df.groupby("Mês")[vcol].agg(['sum', 'mean', 'count']).reset_index()
     mensal.columns = ["Mês", "Receita", "Ticket_Médio", "Conversões"]
@@ -2222,36 +2072,28 @@ def page_simulacaologin():
             col_stat1, col_stat2, col_stat3 = st.columns(3)
             
             with col_stat1:
-                st.markdown(f'''
-                    <div class="metric-box">
-                        <div class="black-metric-label">💰 Total Economizado</div>
-                        <div class="black-metric-value">R$ {total_economizado:.2f}</div>
-                    </div>
-                ''', unsafe_allow_html=True)
+                st.markdown(f"""
+                    <div class="black-metric-label">💰 Total Economizado</div>
+                    <div class="black-metric-value">R$ {total_economizado:.2f}</div>
+                """, unsafe_allow_html=True)
                 
             with col_stat2:
-                st.markdown(f'''
-                    <div class="metric-box">
-                        <div class="black-metric-label">⭐ XP Acumulado</div>
-                        <div class="black-metric-value">{xp}</div>
-                    </div>
-                ''', unsafe_allow_html=True)
+                st.markdown(f"""
+                    <div class="black-metric-label">⭐ XP Acumulado</div>
+                    <div class="black-metric-value">{xp}</div>
+                """, unsafe_allow_html=True)
                 
             with col_stat3:
                 if proximo_nivel_info:
-                    st.markdown(f'''
-                        <div class="metric-box">
-                            <div class="black-metric-label">🏆 Próximo Nível</div>
-                            <div class="black-metric-value">{proximo_nivel_info["nome"]}</div>
-                        </div>
-                    ''', unsafe_allow_html=True)
+                    st.markdown(f"""
+                        <div class="black-metric-label">🏆 Próximo Nível</div>
+                        <div class="black-metric-value">{proximo_nivel_info["nome"]}</div>
+                    """, unsafe_allow_html=True)
                 else:
-                    st.markdown(f'''
-                        <div class="metric-box">
-                            <div class="black-metric-label">🏆 Nível Máximo</div>
-                            <div class="black-metric-value">Alcançado!</div>
-                        </div>
-                    ''', unsafe_allow_html=True)
+                    st.markdown(f"""
+                        <div class="black-metric-label">🏆 Nível Máximo</div>
+                        <div class="black-metric-value">Alcançado!</div>
+                    """, unsafe_allow_html=True)
 
         with col2:
             # Conquistas Rápidas - mostra as 3 conquistas mais recentes
@@ -2681,8 +2523,8 @@ def main():
             signup_screen()
     else:
         # Usuário está logado - carrega dados e mostra o dashboard
-        tx = transacoes if not transacoes.empty else pd.DataFrame()
-        stores = lojas if not lojas.empty else pd.DataFrame()
+        tx = load_xlsx(PATH_TX)
+        stores = load_xlsx(PATH_STORES)
         sidebar_nav()
         page = st.session_state.get("page", "home")
         
@@ -2700,7 +2542,7 @@ def main():
             page_eco()
         elif page == "sim":
             page_simulacaologin()
-        elif page == "sobre":
+        elif page == "sobre":  # ← NOVA PÁGINA ADICIONADA
             page_sobre()
 
 # Ponto de entrada da aplicação
