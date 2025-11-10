@@ -1,5 +1,14 @@
-# Importações básicas para nossa aplicação
-import streamlit as st  # Framework para criar aplicações web
+# === CONFIGURAÇÃO DA PÁGINA DEVE SER O PRIMEIRO COMANDO ===
+import streamlit as st
+
+# Configuração da página que aparece na aba do navegador - DEVE SER O PRIMEIRO COMANDO
+st.set_page_config(
+    page_title="CupomGO - Painel Econômico Interativo", 
+    page_icon="💳", 
+    layout="wide"  # Usa toda a largura da tela
+)
+
+# === DEPOIS IMPORTE OS OUTROS MÓDULOS ===
 import pandas as pd     # Para trabalhar com tabelas e dados
 import numpy as np      # Para cálculos matemáticos
 import plotly.express as px  # Para criar gráficos bonitos
@@ -45,7 +54,8 @@ def read_table(filename: str, sheet_name=0, **kwargs):
     if p is None:
         st.error(f"❌ Arquivo **{filename}** não encontrado em **{DATA}**.\n"
                  f"Coloque o arquivo na pasta **data/** (mesmo nível do app.py).")
-        st.stop()
+        # Em vez de parar, retorna DataFrame vazio para permitir continuar
+        return pd.DataFrame()
 
     ext = p.suffix.lower()
     try:
@@ -57,10 +67,10 @@ def read_table(filename: str, sheet_name=0, **kwargs):
         else:
             st.error(f"❌ Extensão não suportada: **{ext}** ({p.name}). "
                      f"Use .xlsx/.xls/.csv.")
-            st.stop()
+            return pd.DataFrame()
     except Exception as e:
         st.error(f"❌ Erro ao ler **{p.name}**: {e}")
-        st.stop()
+        return pd.DataFrame()
 
 # === (Opcional) Leitor com múltiplos candidatos de nome ===
 def read_any(candidates, **kwargs):
@@ -73,7 +83,7 @@ def read_any(candidates, **kwargs):
         if p is not None:
             return read_table(p.name, **kwargs)
     st.error("❌ Nenhum dos arquivos foi encontrado: " + ", ".join(candidates))
-    st.stop()
+    return pd.DataFrame()
 
 # === Painel de diagnóstico (sidebar) ===
 with st.sidebar:
@@ -91,8 +101,9 @@ with st.sidebar:
 
 # ---------------- Carregamento dos Dados ----------------
 # Carrega todos os arquivos usando o sistema robusto
+# CORREÇÃO: Tenta diferentes variações de nome para conquista.csv
 try:
-    conquista = read_table("conquista.csv")
+    conquista = read_any(["conquista.csv", "conquistas.csv", "achievements.csv"])
 except:
     conquista = pd.DataFrame()
 
@@ -159,13 +170,6 @@ if not df_transacoes.empty:
 
 # Cor principal da nossa marca - usada em botões, títulos e gráficos
 PRIMARY = "#0C2D6B"
-
-# Configuração da página que aparece na aba do navegador
-st.set_page_config(
-    page_title="CupomGO - Painel Econômico Interativo", 
-    page_icon="💳", 
-    layout="wide"  # Usa toda a largura da tela
-)
 
 # ---------------- CSS Externo ----------------
 def inject_css_file(path="assets/styles.css"):
