@@ -215,6 +215,97 @@ ECON_PATH = get_data_path("economia.csv")
 CUPOM_USOS_PATH = get_data_path("cupom_usos.csv")
 CONQUISTAS_PATH = get_data_path("conquistas.csv")
 
+# ======== Interatividade global para TODOS os gráficos ========
+
+def add_time_widgets(df, dcol):
+    """
+    Widget de intervalo de datas + agregação (mês/semana/dia).
+    Retorna df recortado e a 'freq' escolhida.
+    """
+    df = df.copy()
+    df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
+    min_d = pd.to_datetime(df[dcol].min())
+    max_d = pd.to_datetime(df[dcol].max())
+
+    with st.expander("⏱️ Filtros de tempo", expanded=False):
+        c1, c2 = st.columns(2)
+        start = c1.date_input("De", value=min_d.date() if pd.notna(min_d) else datetime.date.today())
+        end   = c2.date_input("Até", value=max_d.date() if pd.notna(max_d) else datetime.date.today())
+        freq = st.radio("Agregação", ["Mês", "Semana", "Dia"], horizontal=True, index=0)
+    if start and end:
+        mask = (df[dcol] >= pd.to_datetime(start)) & (df[dcol] <= pd.to_datetime(end) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1))
+        df = df.loc[mask]
+
+    return df, {"Mês":"M", "Semana":"W-MON", "Dia":"D"}[freq]
+
+def ui_global_filters(df, get):
+    """
+    Filtros em sidebar que viram 'cross-filter' para todos os gráficos da página.
+    Aplica loja, tipo, faixa de valores e busca de texto.
+    """
+    df = df.copy()
+
+    # descobre colunas usuais
+    scol = get("nome_loja","loja","merchant","estabelecimento")
+    tcol = get("tipo_cupom","tipo","categoria")
+    vcol = get("valor_compra","valor","amount","preco")
+    txtcol = get("cupom","codigo","id_cupom","cupom_id")
+
+    with st.sidebar.expander("🎛️ Filtros (página atual)", expanded=False):
+        if scol and scol in df.columns:
+            lojas = sorted(df[scol].dropna().astype(str).unique().tolist())[:3000]
+            pick_lojas = st.multiselect("Lojas", lojas, default=[])
+            if pick_lojas:
+                df = df[df[scol].astype(str).isin(pick_lojas)]
+
+        if tcol and tcol in df.columns:
+            tipos = sorted(df[tcol].dropna().astype(str).unique().tolist())[:3000]
+            pick_tipos = st.multiselect("Tipos de cupom", tipos, default=[])
+            if pick_tipos:
+                df = df[df[tcol].astype(str).isin(pick_tipos)]
+
+        if vcol and vcol in df.columns:
+            vmin, vmax = float(df[vcol].min()), float(df[vcol].max())
+            smin, smax = st.slider("Faixa de valores", min_value=round(vmin,2), max_value=round(vmax,2),
+                                   value=(round(vmin,2), round(vmax,2)))
+            df = df[(df[vcol] >= smin) & (df[vcol] <= smax)]
+
+        if txtcol and txtcol in df.columns:
+            q = st.text_input("Buscar por código de cupom (contém)")
+            if q:
+                df = df[df[txtcol].astype(str).str.contains(q, case=False, na=False)]
+
+    return df
+
+def time_axes_enhance(fig):
+    """
+    Liga range selector + range slider + modos de zoom úteis.
+    Use em séries temporais (x datetime).
+    """
+    fig.update_xaxes(
+        rangeselector=dict(
+            buttons=list([
+                dict(count=1, label="1m", step="month", stepmode="backward"),
+                dict(count=3, label="3m", step="month", stepmode="backward"),
+                dict(count=6, label="6m", step="month", stepmode="backward"),
+                dict(count=1, label="YTD", step="year",  stepmode="todate"),
+                dict(count=1, label="1a", step="year",  stepmode="backward"),
+                dict(step="all", label="Tudo")
+            ])
+        ),
+        rangeslider=dict(visible=True),
+        type="date"
+    )
+    fig.update_layout(
+        dragmode="zoom",
+        modebar_add=["v1hovermode","toggleSpikelines","toImage"]
+    )
+    return fig
+
+def df_download_button(df, label="⬇️ Baixar dados (CSV)", fname="dados.csv"):
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button(label, csv, file_name=fname, mime="text/csv")
+
 # ---------------- Sistema de Gamificação ----------------
 class SistemaGamificacao:
     """
@@ -934,39 +1025,70 @@ def page_home(tx, stores):
         total_receita = df[vcol].sum() if (vcol and (vcol in df.columns)) else 0
         kpi_card("Receita Total", f"R$ {total_receita:,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
 
-    # Verifica se temos dados suficientes para gráficos
-    if not dcol or dcol not in df.columns or not vcol or vcol not in df.columns:
-        st.warning("Dados insuficientes para gerar gráficos.")
+    # ----- filtros cruzados (sidebar) + tempo -----
+    df = ui_global_filters(df, get)
+    dcol = get("data","data_captura")
+    vcol = get("valor_compra","valor")
+
+    if not dcol or not vcol or dcol not in df.columns or vcol not in df.columns:
+        st.warning("Dados insuficientes para gráficos.")
         return
 
-    # Prepara dados mensais para o gráfico
-    df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
-    df["Mês"] = df[dcol].dt.to_period("M").astype(str)
-    resumo = df.groupby("Mês")[vcol].agg(["sum","mean","count"]).reset_index()
-    resumo.columns = ["Mês","Receita","Ticket Médio","Conversões"]
+    # widgets de tempo + agregação
+    df, freq = add_time_widgets(df, dcol)
 
-    # Gráfico principal da página inicial
+    # agrega por periodicidade escolhida, mantendo eixo X em datetime (suporta range slider!)
+    df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
+    df["Periodo"] = df[dcol].dt.to_period(freq).dt.to_timestamp()
+
+    resumo = df.groupby("Periodo")[vcol].agg(Receita="sum", Ticket_Médio="mean", Conversões="count").reset_index()
+
+    # switches de visualização
+    c1, c2, c3 = st.columns(3)
+    show_cum = c1.checkbox("📈 Mostrar cumulativo", value=False, key="home_cum")
+    show_pts = c2.checkbox("● Mostrar marcadores", value=True, key="home_pts")
+    smooth   = c3.slider("Suavização (média móvel)", 1, 6, 1, key="home_smooth")
+
+    if smooth > 1:
+        for col in ["Receita","Ticket_Médio","Conversões"]:
+            resumo[col] = resumo[col].rolling(smooth, min_periods=1).mean()
+
+    # gráfico combinado
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=resumo["Mês"], y=resumo["Receita"], name="Receita",
-        marker_color=PRIMARY,
-        hovertemplate="Mês: %{x}<br>Receita: R$ %{y:,.2f}<extra></extra>"
+        x=resumo["Periodo"], y=resumo["Receita"],
+        name="Receita (R$)", marker_color=PRIMARY,
+        hovertemplate="Período: %{x|%Y-%m}<br>Receita: R$ %{y:,.2f}<extra></extra>"
     ))
     fig.add_trace(go.Scatter(
-        x=resumo["Mês"], y=resumo["Ticket Médio"], name="Ticket médio",
-        mode="lines+markers", yaxis="y2",
-        line=dict(color="darkgray", width=3),
-        hovertemplate="Mês: %{x}<br>Ticket: R$ %{y:,.2f}<extra></extra>"
+        x=resumo["Periodo"], y=resumo["Ticket_Médio"],
+        name="Ticket Médio (R$)", mode="lines+markers" if show_pts else "lines",
+        yaxis="y2", line=dict(width=3),
+        hovertemplate="Período: %{x|%Y-%m}<br>Ticket: R$ %{y:,.2f}<extra></extra>"
     ))
+
+    # cumulativo opcional
+    if show_cum:
+        fig.add_trace(go.Scatter(
+            x=resumo["Periodo"], y=resumo["Receita"].cumsum(),
+            name="Receita (Acumulada)", mode="lines",
+            line=dict(dash="dash"),
+            hovertemplate="Período: %{x|%Y-%m}<br>Receita Acum.: R$ %{y:,.2f}<extra></extra>"
+        ))
+
     fig.update_layout(
-        title="Desempenho Mensal - Receita e Ticket Médio",
-        xaxis_title="Mês",
-        yaxis=dict(title="Receita (R$)"),
-        yaxis2=dict(overlaying="y", side="right", title="Ticket médio (R$)"),
-        margin=dict(t=80, b=140, l=80, r=80)
+        title="Receita, Ticket Médio e Conversões por período",
+        xaxis_title="Período", yaxis=dict(title="Receita (R$)"),
+        yaxis2=dict(overlaying="y", side="right", title="Ticket Médio (R$)")
     )
     fig = style_fig(fig, y_fmt=",.2f")
+    fig = time_axes_enhance(fig)
     st.plotly_chart(fig, use_container_width=True)
+
+    # baixar dados do gráfico
+    df_download_button(resumo.rename(columns={"Periodo":"periodo","Ticket_Médio":"ticket_medio"}), 
+                       "⬇️ Baixar dados do gráfico (CSV)",
+                       "home_resumo.csv")
 
 def generate_example_data(num_rows=2500):
     """
@@ -1074,265 +1196,123 @@ def page_kpis(tx):
         df = generate_example_data(num_rows=2500)
         df, get = normcols(df)
 
-    # Encontra colunas importantes
-    dcol = get("data","data_captura")
-    vcol = get("valor_compra","valor")
-    scol = get("nome_loja","loja","tipo_loja")
-    tcol = get("tipo_cupom","tipo")
-
     # Abas para diferentes perfis executivos
     tab1, tab2, tab3 = st.tabs(["📈 Performance CEO - Conversões e Taxas", "🔧 Performance CTO - Operações", "💰 Performance CFO - Financeiro"])
 
     with tab1:
         st.subheader("📈 Performance CEO - Conversões e Taxas")
-        
-        if not dcol:
+
+        df = ui_global_filters(df, get)
+        dcol = get("data","data_captura")
+        if not dcol: 
             st.warning("Coluna de data não encontrada.")
             return
-            
-        # Prepara dados mensais
+
+        df, freq = add_time_widgets(df, dcol)
         df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
-        bym = df[dcol].dt.to_period("M").astype(str)
-        conv = bym.value_counts().sort_index()
-        
-        if len(conv) == 0:
-            st.info("Sem dados de conversões para exibir.")
-            return
-            
-        # Calcula taxa de adesão (percentual do mês com maior volume)
-        taxa_adesao = (conv.values / conv.values.max() * 100) if len(conv) > 0 else np.array([])
+        df["Periodo"] = df[dcol].dt.to_period(freq).dt.to_timestamp()
 
-        # Gráfico para CEO
+        conv = df.groupby("Periodo").size().rename("Conversões").reset_index()
+        conv["Taxa_Adesão_%"] = conv["Conversões"] / max(1, conv["Conversões"].max()) * 100
+
+        c1, c2 = st.columns(2)
+        show_ma = c1.checkbox("Média móvel (3)", value=True, key="ceo_ma")
+        show_norm = c2.checkbox("Normalizar 0–100%", value=False, key="ceo_norm")
+
+        if show_ma:
+            conv["Conversões_MM"] = conv["Conversões"].rolling(3, min_periods=1).mean()
+
+        y_conv = "Conversões_MM" if show_ma else "Conversões"
+        y2 = "Taxa_Adesão_%"
+
+        if show_norm:
+            conv[y_conv] = conv[y_conv] / max(1, conv[y_conv].max()) * 100
+
         fig_ceo = go.Figure()
-        fig_ceo.add_trace(go.Bar(
-            x=conv.index, y=conv.values, name="Conversões",
-            marker_color=PRIMARY,
-            hovertemplate="Mês: %{x}<br>Conversões: %{y:,}<extra></extra>"
-        ))
-        
-        if len(taxa_adesao) > 0:
-            fig_ceo.add_trace(go.Scatter(
-                x=conv.index, y=taxa_adesao, name="Taxa de Adesão (%)",
-                mode="lines+markers", yaxis="y2",
-                line=dict(color="orange", width=3),
-                hovertemplate="Mês: %{x}<br>Taxa: %{y:.1f}%<extra></extra>"
-            ))
+        fig_ceo.add_trace(go.Bar(x=conv["Periodo"], y=conv[y_conv], name="Conversões", marker_color=PRIMARY,
+                                 hovertemplate="Período: %{x|%Y-%m}<br>Conversões: %{y:,.0f}<extra></extra>"))
+        fig_ceo.add_trace(go.Scatter(x=conv["Periodo"], y=conv[y2], name="Taxa de Adesão (%)", yaxis="y2", mode="lines+markers",
+                                     hovertemplate="Período: %{x|%Y-%m}<br>Taxa: %{y:.1f}%<extra></extra>"))
 
-        fig_ceo.update_layout(
-            title="Conversões e Taxa de Adesão Mensal",
-            xaxis_title="Mês",
-            yaxis=dict(title="Conversões"),
-            yaxis2=dict(overlaying="y", side="right", title="Taxa de Adesão (%)") if len(taxa_adesao) > 0 else None,
-            margin=dict(t=80, b=140, l=80, r=80)
-        )
+        fig_ceo.update_layout(title="Conversões e Taxa de Adesão",
+                              yaxis=dict(title="Conversões" if not show_norm else "Escala Normalizada (0–100)"),
+                              yaxis2=dict(overlaying="y", side="right", title="Taxa de Adesão (%)"))
         fig_ceo = style_fig(fig_ceo)
+        fig_ceo = time_axes_enhance(fig_ceo)
         st.plotly_chart(fig_ceo, use_container_width=True)
-
-        # KPIs para CEO
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            kpi_card("Total Conversões", f"{len(df):,}".replace(",", "."))
-        with col2:
-            kpi_card("Meses Ativos", f"{len(conv)}")
-        with col3:
-            max_conv = conv.max() if len(conv) > 0 else 0
-            kpi_card("Pico Mensal", f"{max_conv:,}".replace(",", "."))
+        df_download_button(conv, "⬇️ CSV (CEO)", "kpi_ceo.csv")
 
     with tab2:
-        st.subheader("🔧 Performance CTO - Volume Operacional")
-        
-        if not dcol:
+        st.subheader("🔧 Performance CTO - Operações")
+
+        df = ui_global_filters(df, get)
+        dcol = get("data","data_captura")
+        if not dcol: 
             st.warning("Coluna de data não encontrada.")
             return
-            
-        # Volume diário de transações
-        volume_diario = df[dcol].dt.date
-        volume_contagem = volume_diario.value_counts().sort_index()
 
-        if len(volume_contagem) == 0:
-            st.info("Sem dados de volume operacional para exibir.")
-            return
+        df, freq = add_time_widgets(df, dcol)
+        df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
+        df["Periodo"] = df[dcol].dt.to_period(freq).dt.to_timestamp()
 
-        # Gráfico de volume diário
-        fig_cto = px.bar(
-            x=volume_contagem.index.astype(str), y=volume_contagem.values,
-            title="Volume Diário de Transações",
-            labels={"x":"Data", "y":"Transações"},
-            color_discrete_sequence=[PRIMARY]
-        )
-        fig_cto.update_traces(hovertemplate="Data: %{x}<br>Transações: %{y:,}<extra></extra>")
+        vol = df.groupby("Periodo").size().rename("Eventos").reset_index()
+
+        c1, c2 = st.columns(2)
+        topN = c1.slider("Top picos a anotar", 0, 10, 3, key="cto_topn")
+        show_spikes = c2.checkbox("Mostrar spikes (linhas guias)", True, key="cto_spikes")
+
+        fig_cto = px.bar(vol, x="Periodo", y="Eventos", title="Volume Operacional",
+                         labels={"Periodo":"Período","Eventos":"Eventos"}, color_discrete_sequence=[PRIMARY])
+        if topN > 0:
+            top = vol.nlargest(topN, "Eventos")
+            fig_cto.add_trace(go.Scatter(x=top["Periodo"], y=top["Eventos"], mode="markers+text",
+                                         text=[f"▲ {int(v)}" for v in top["Eventos"]],
+                                         textposition="top center", name="Picos"))
+        if show_spikes:
+            fig_cto.update_xaxes(showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1)
+
         fig_cto = style_fig(fig_cto, y_fmt=",.0f")
+        fig_cto = time_axes_enhance(fig_cto)
         st.plotly_chart(fig_cto, use_container_width=True)
-
-        # KPIs para CTO
-        col1, col2, col3 = st.columns(3)
-        with col1: 
-            kpi_card("Transações/Dia", f"{volume_contagem.mean():.0f}")
-        with col2: 
-            kpi_card("Pico Diário", f"{volume_contagem.max():,}".replace(",", "."))
-        with col3: 
-            kpi_card("Dias Ativos", f"{len(volume_contagem)}")
-
-        # Gráfico por dia da semana
-        if dcol in df.columns:
-            df_copy = df.copy()
-            df_copy['Dia_Semana'] = df_copy[dcol].dt.day_name()
-            dias_ordem = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-            dias_portugues = {
-                'Monday': 'Segunda', 'Tuesday': 'Terça', 'Wednesday': 'Quarta', 
-                'Thursday': 'Quinta', 'Friday': 'Sexta', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
-            }
-            
-            volume_semanal = df_copy['Dia_Semana'].value_counts().reindex(dias_ordem).fillna(0)
-            volume_semanal.index = volume_semanal.index.map(dias_portugues)
-            
-            fig_semanal = px.bar(
-                x=volume_semanal.index, y=volume_semanal.values,
-                title="Distribuição de Transações por Dia da Semana",
-                labels={"x":"Dia da Semana", "y":"Transações"},
-                color_discrete_sequence=["#3b82f6"]
-            )
-            fig_semanal = style_fig(fig_semanal)
-            st.plotly_chart(fig_semanal, use_container_width=True)
+        df_download_button(vol, "⬇️ CSV (CTO)", "kpi_cto.csv")
 
     with tab3:
         st.subheader("💰 Performance CFO - Receita e ROI")
-        
-        if df.empty:
-            st.warning("Não há dados disponíveis para análise financeira.")
+
+        df = ui_global_filters(df, get)
+        dcol = get("data","data_captura"); vcol = get("valor_compra","valor"); scol = get("nome_loja","loja")
+        if not (dcol and vcol and scol) or any(c not in df.columns for c in [dcol, vcol, scol]):
+            st.warning("Dados insuficientes para CFO.")
             return
 
-        # Gráfico de evolução da receita
-        if dcol and vcol:
-            df_copy = df.copy()
-            df_copy[dcol] = pd.to_datetime(df_copy[dcol]) 
-            df_copy['Mês'] = df_copy[dcol].dt.to_period('M').astype(str)
-            
-            receita_mensal = df_copy.groupby('Mês')[vcol].sum().reset_index()
-            
-            fig_receita = px.line(
-                receita_mensal, x='Mês', y=vcol,
-                title="📈 Evolução da Receita Mensal",
-                labels={vcol: "Receita (R$)", "Mês": "Mês"},
-                color_discrete_sequence=[PRIMARY]
-            )
-            fig_receita.update_traces(mode='lines+markers', line=dict(width=3))
-            fig_receita = style_fig(fig_receita, y_fmt=",.2f")
-            st.plotly_chart(fig_receita, use_container_width=True)
+        c1, c2, c3 = st.columns(3)
+        topN = c1.slider("Top N lojas por Receita", 5, 20, 10, key="cfo_topn")
+        roi_mode = c2.selectbox("Cálculo de ROI", ["Simplificado (35% investimento)", "Detalhado (colunas de custo/invest)"], index=0, key="cfo_roi")
+        sort_by = c3.selectbox("Ordenar por", ["Receita","ROI"], index=0, key="cfo_sort")
 
-        # Gráfico de ROI por loja
-        if scol and vcol and scol in df.columns:
-            
-            if 'investimento_mkt' in df.columns and 'lucro_bruto' in df.columns:
-                # Cálculo realista de ROI se temos os dados
-                agg = df.groupby(scol).agg(
-                    Receita=('valor_compra', 'sum'), 
-                    Transacoes=('valor_compra', 'count'), 
-                    Investimento=('investimento_mkt', 'sum'),
-                    Lucro=('lucro_bruto', 'sum')
-                ).reset_index()
-                agg['ROI'] = ((agg['Lucro'] - agg['Investimento']) / agg['Investimento'] * 100).round(2)
-            else:
-                # Cálculo simplificado para dados de exemplo
-                agg = df.groupby(scol)[vcol].agg(['sum', 'count']).reset_index()
-                agg.columns = [scol, 'Receita', 'Transacoes']
-                agg['Investimento'] = agg['Receita'] * 0.35 
-                agg['ROI'] = ((agg['Receita'] - agg['Investimento']) / agg['Investimento'] * 100).round(2)
-            
-            agg = agg.nlargest(10, 'Receita')
+        if roi_mode.startswith("Detalhado") and {"investimento_mkt","lucro_bruto"}.issubset(df.columns):
+            agg = df.groupby(scol).agg(Receita=(vcol,'sum'), Transacoes=(vcol,'count'),
+                                       Investimento=('investimento_mkt','sum'), Lucro=('lucro_bruto','sum')).reset_index()
+            agg["ROI"] = ((agg["Lucro"] - agg["Investimento"]) / agg["Investimento"] * 100).replace([np.inf, -np.inf], np.nan)
+        else:
+            agg = df.groupby(scol)[vcol].agg(['sum','count']).reset_index().rename(columns={'sum':'Receita','count':'Transacoes'})
+            agg["Investimento"] = agg["Receita"]*0.35
+            agg["ROI"] = ((agg["Receita"] - agg["Investimento"]) / agg["Investimento"] * 100)
 
-            fig_cfo = go.Figure()
-            fig_cfo.add_trace(go.Bar(
-                x=agg[scol].astype(str), y=agg['Receita'], name="Receita",
-                marker_color=PRIMARY,
-                hovertemplate="Loja: %{x}<br>Receita: R$ %{y:,.2f}<extra></extra>"
-            ))
-            fig_cfo.add_trace(go.Scatter(
-                x=agg[scol].astype(str), y=agg['ROI'], name="ROI",
-                yaxis="y2", mode="lines+markers",
-                line=dict(color="red", width=3),
-                hovertemplate="Loja: %{x}<br>ROI: %{y:.2f}%<extra></extra>"
-            ))
-            fig_cfo.update_layout(
-                title="🏪 Receita e ROI por Loja (Top 10)",
-                xaxis_title="Lojas",
-                yaxis=dict(title="Receita (R$)"),
-                yaxis2=dict(overlaying="y", side="right", title="ROI (%)"),
-                margin=dict(t=80, b=140, l=80, r=80)
-            )
-            fig_cfo = style_fig(fig_cfo, y_fmt=",.2f")
-            st.plotly_chart(fig_cfo, use_container_width=True)
+        agg = agg.sort_values(sort_by, ascending=False).head(topN)
 
-            # KPIs financeiros
-            col1, col2, col3 = st.columns(3)
-            with col1: 
-                kpi_card("Receita Total", f"R$ {agg['Receita'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
-            with col2: 
-                kpi_card("ROI Médio", f"{agg['ROI'].mean():.1f}%")
-            with col3: 
-                kpi_card("Melhor ROI", f"{agg['ROI'].max():.1f}%")
-
-        # Gráfico de pizza por tipo de cupom
-        if tcol and vcol and tcol in df.columns:
-            tipo_agg = df.groupby(tcol)[vcol].agg(['sum', 'count']).reset_index()
-            tipo_agg.columns = [tcol, 'Receita', 'Transacoes']
-            
-            fig_tipo = px.pie(
-                tipo_agg, values='Receita', names=tcol,
-                title="🥧 Distribuição da Receita por Tipo de Cupom",
-                color_discrete_sequence=px.colors.qualitative.Set3
-            )
-            fig_tipo = style_fig(fig_tipo)
-            st.plotly_chart(fig_tipo, use_container_width=True)
-
-        # Evolução do ticket médio
-        if dcol and vcol:
-            df_copy = df.copy()
-            if 'Mês' not in df_copy.columns:
-                    df_copy[dcol] = pd.to_datetime(df_copy[dcol])
-                    df_copy['Mês'] = df_copy[dcol].dt.to_period('M').astype(str)
-                    
-            ticket_mensal = df_copy.groupby('Mês')[vcol].mean().reset_index()
-            
-            fig_ticket = px.line(
-                ticket_mensal, x='Mês', y=vcol,
-                title="💰 Evolução do Ticket Médio Mensal",
-                labels={vcol: "Ticket Médio (R$)", "Mês": "Mês"},
-                color_discrete_sequence=["#10b981"]
-            )
-            fig_ticket.update_traces(mode='lines+markers', line=dict(width=3))
-            fig_ticket = style_fig(fig_ticket, y_fmt=",.2f")
-            st.plotly_chart(fig_ticket, use_container_width=True)
-
-        # Evolução da margem de lucro
-        if dcol and vcol:
-            df_copy = df.copy()
-            if 'Mês' not in df_copy.columns:
-                df_copy[dcol] = pd.to_datetime(df_copy[dcol])
-                df_copy['Mês'] = df_copy[dcol].dt.to_period('M').astype(str)
-            
-            if 'lucro_bruto' in df_copy.columns:
-                # Cálculo real se temos dados de lucro
-                lucro_mensal = df_copy.groupby('Mês').agg(
-                    Receita_Total=(vcol, 'sum'),
-                    Lucro_Total=('lucro_bruto', 'sum')
-                ).reset_index()
-                lucro_mensal['Margem_Lucro'] = (lucro_mensal['Lucro_Total'] / lucro_mensal['Receita_Total'] * 100).round(2)
-            else:
-                # Margens simuladas para dados de exemplo
-                lucro_mensal = df_copy.groupby('Mês')[vcol].sum().reset_index()
-                np.random.seed(123)
-                lucro_mensal['Margem_Lucro'] = np.random.uniform(30, 45, len(lucro_mensal))
-            
-            fig_margem = px.area(
-                lucro_mensal, x='Mês', y='Margem_Lucro',
-                title="📊 Evolução da Margem de Lucro (%)",
-                labels={"Margem_Lucro": "Margem de Lucro (%)", "Mês": "Mês"},
-                color_discrete_sequence=["#8b5cf6"]
-            )
-            fig_margem.update_traces(line=dict(width=3))
-            fig_margem = style_fig(fig_margem)
-            st.plotly_chart(fig_margem, use_container_width=True)
+        fig_cfo = go.Figure()
+        fig_cfo.add_trace(go.Bar(x=agg[scol].astype(str), y=agg["Receita"], name="Receita (R$)", marker_color=PRIMARY,
+                                 hovertemplate="Loja: %{x}<br>Receita: R$ %{y:,.2f}<extra></extra>"))
+        fig_cfo.add_trace(go.Scatter(x=agg[scol].astype(str), y=agg["ROI"], name="ROI (%)", yaxis="y2",
+                                     mode="lines+markers", hovertemplate="Loja: %{x}<br>ROI: %{y:.2f}%<extra></extra>"))
+        fig_cfo.update_layout(title="Receita e ROI por Loja",
+                              xaxis_title="Loja",
+                              yaxis=dict(title="Receita (R$)"),
+                              yaxis2=dict(overlaying="y", side="right", title="ROI (%)"))
+        fig_cfo = style_fig(fig_cfo, y_fmt=",.2f")
+        st.plotly_chart(fig_cfo, use_container_width=True)
+        df_download_button(agg, "⬇️ CSV (CFO)", "kpi_cfo.csv")
 
 def page_tendencias(tx):
     """
@@ -1426,7 +1406,9 @@ def page_tendencias(tx):
             yaxis2=dict(title='Volume de Cupons', overlaying='y', side='right'),
             legend=dict(orientation="h", yanchor="bottom", y=-0.4)
         )
-        st.plotly_chart(style_fig(fig_mensal, y_fmt=",.2f"), use_container_width=True)
+        fig_mensal = style_fig(fig_mensal, y_fmt=",.2f")
+        fig_mensal = time_axes_enhance(fig_mensal)
+        st.plotly_chart(fig_mensal, use_container_width=True)
 
         # Gráficos de dia da semana e hora
         col1, col2 = st.columns(2)
@@ -1597,312 +1579,56 @@ def page_financeiro(tx):
         dcol = 'data_captura'
         vcol = 'valor_compra'
 
-    # Prepara dados mensais
+    # ----- NOVO CÓDIGO INTERATIVO -----
+    df = ui_global_filters(df, get)
+    dcol = get("data","data_captura"); vcol = get("valor_compra","valor")
+    if not (dcol and vcol) or any(c not in df.columns for c in [dcol, vcol]):
+        st.info("Sem dados suficientes.")
+        return
+
+    df, freq = add_time_widgets(df, dcol)
     df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
-    df["Mês"] = df[dcol].dt.to_period("M").astype(str)
+    df["Periodo"] = df[dcol].dt.to_period(freq).dt.to_timestamp()
 
-    mensal = df.groupby("Mês")[vcol].agg(['sum', 'mean', 'count']).reset_index()
-    mensal.columns = ["Mês", "Receita", "Ticket_Médio", "Conversões"]
+    resumo = df.groupby("Periodo")[vcol].agg(Receita="sum", Ticket="mean").reset_index()
+    resumo["Lucro"] = resumo["Receita"]*0.65
+    resumo["ROI"] = np.where(resumo["Receita"]>0, (resumo["Lucro"]/(resumo["Receita"]*0.35))*100, np.nan)
 
-    # Simula dados financeiros (em uma aplicação real, viriam de base de dados)
-    rng = np.random.default_rng(42)
-    base_despesas = rng.uniform(0.6, 0.8, len(mensal))
-    for i in range(1, len(base_despesas)):
-        base_despesas[i] = 0.3 * base_despesas[i] + 0.7 * base_despesas[i-1]
+    c1, c2 = st.columns(2)
+    cum  = c1.checkbox("📈 Mostrar acumulado", False, key="fin_cum")
+    pts  = c2.checkbox("● Marcadores", True, key="fin_pts")
 
-    # Cálculos financeiros realistas
-    mensal["Despesas"] = (mensal["Receita"] * base_despesas).round(2)
-    mensal["Lucro"] = (mensal["Receita"] - mensal["Despesas"]).round(2)
-    mensal["Margem_Lucro"] = (mensal["Lucro"] / mensal["Receita"] * 100).round(2)
-    mensal["CAC"] = (mensal["Despesas"] / mensal["Conversões"]).round(2)  # Custo de Aquisição por Cliente
-    
-    mensal["ROI"] = (mensal["Lucro"] / mensal["Despesas"] * 100).round(2)
-    mensal["ROIC"] = ((mensal["Lucro"] - (mensal["Despesas"] * 0.1)) / (mensal["Despesas"] * 0.6) * 100).round(2)
-    mensal["EBITDA"] = (mensal["Lucro"] * 1.2).round(2)  # Lucro antes de juros, impostos, depreciação e amortização
-    mensal["EBIT"] = (mensal["Lucro"] * 1.1).round(2)    # Lucro antes de juros e impostos
-    mensal["Faturamento_Liquido"] = (mensal["Receita"] * 0.85).round(2)  # Receita menos impostos
-    mensal["Custo_Variavel"] = (mensal["Receita"] * 0.45).round(2)
-    mensal["Custo_Fixo"] = (mensal["Despesas"] - mensal["Custo_Variavel"]).round(2)
-    mensal["Margem_Contribuicao"] = ((mensal["Receita"] - mensal["Custo_Variavel"]) / mensal["Receita"] * 100).round(2)
-    mensal["Ponto_Equilibrio"] = (mensal["Custo_Fixo"] / (mensal["Margem_Contribuicao"] / 100)).round(2)
+    tabs = st.tabs(["Receita", "Ticket", "Lucro", "ROI"])
 
-    # Demonstrações contábeis
-    mensal["Ativo_Total"] = (mensal["Receita"] * 2.5).round(2)
-    mensal["Passivo_Total"] = (mensal["Ativo_Total"] * 0.6).round(2)
-    mensal["Patrimonio_Liquido"] = (mensal["Ativo_Total"] - mensal["Passivo_Total"]).round(2)
-    mensal["Endividamento"] = (mensal["Passivo_Total"] / mensal["Ativo_Total"] * 100).round(2)
-    mensal["Liquidez_Corrente"] = (mensal["Ativo_Total"] * 0.4 / mensal["Passivo_Total"] * 0.7).round(2)
-    mensal["Margem_EBITDA"] = (mensal["EBITDA"] / mensal["Receita"] * 100).round(2)
-    mensal["Margem_EBIT"] = (mensal["EBIT"] / mensal["Receita"] * 100).round(2)
+    def _line(df_, y, title, yfmt=",.2f", color=PRIMARY):
+        fig = px.line(df_, x="Periodo", y=y, title=title, labels={"Periodo":"Período", y:y},
+                      color_discrete_sequence=[color])
+        fig.update_traces(mode="lines+markers" if pts else "lines", line=dict(width=3))
+        fig = style_fig(fig, y_fmt=yfmt)
+        fig = time_axes_enhance(fig)
+        return fig
 
-    # Abas para diferentes análises financeiras
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 Fluxo Financeiro", "📊 Demonstrações Contábeis", "💰 Análise de Rentabilidade", "📋 Balanço Patrimonial"])
+    with tabs[0]:
+        dfp = resumo.copy()
+        if cum:
+            dfp["Receita"] = dfp["Receita"].cumsum()
+        st.plotly_chart(_line(dfp, "Receita", "Receita Total por Período"), use_container_width=True)
+        df_download_button(dfp[["Periodo","Receita"]], "⬇️ CSV Receita", "fin_receita.csv")
 
-    with tab1:
-        st.subheader("Fluxo Financeiro Mensal")
+    with tabs[1]:
+        st.plotly_chart(_line(resumo, "Ticket", "Ticket Médio por Período"), use_container_width=True)
+        df_download_button(resumo[["Periodo","Ticket"]], "⬇️ CSV Ticket", "fin_ticket.csv")
 
-        # Gráfico de receita, despesas e lucro
-        fig_fluxo = go.Figure()
-        fig_fluxo.add_trace(go.Bar(x=mensal["Mês"], y=mensal["Receita"], name="Receita", marker_color=PRIMARY, opacity=0.8))
-        fig_fluxo.add_trace(go.Bar(x=mensal["Mês"], y=mensal["Despesas"], name="Despesas", marker_color="#f59e0b", opacity=0.8))
-        fig_fluxo.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Lucro"], name="Lucro", mode="lines+markers", line=dict(color="#000000", width=3), marker=dict(size=8)))
-        fig_fluxo.update_layout(
-            title="Evolução da Receita, Despesas e Lucro", 
-            xaxis_title="Mês", 
-            yaxis_title="Valor (R$)", 
-            barmode="group", 
-            hovermode="x unified",
-            margin=dict(t=80, b=140, l=80, r=80)
-        )
-        st.plotly_chart(style_fig(fig_fluxo, y_fmt=",.2f"), use_container_width=True)
+    with tabs[2]:
+        dfp = resumo.copy()
+        if cum:
+            dfp["Lucro"] = dfp["Lucro"].cumsum()
+        st.plotly_chart(_line(dfp, "Lucro", "Lucro Estimado por Período"), use_container_width=True)
+        df_download_button(dfp[["Periodo","Lucro"]], "⬇️ CSV Lucro", "fin_lucro.csv")
 
-        # KPIs financeiros
-        col1, col2, col3, col4 = st.columns(4)
-        with col1: 
-            kpi_card("Receita Total", f"R$ {mensal['Receita'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
-        with col2: 
-            kpi_card("Lucro Total", f"R$ {mensal['Lucro'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
-        with col3: 
-            kpi_card("Margem Média", f"{mensal['Margem_Lucro'].mean():.1f}%")
-        with col4: 
-            kpi_card("CAC Médio", f"R$ {mensal['CAC'].mean():.2f}")
-
-    with tab2:
-        st.subheader("Demonstração do Resultado do Exercício (DRE)")
-        
-        ultimo_mes = mensal.iloc[-1] if len(mensal) > 0 else None
-        
-        if ultimo_mes is not None:
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("**DRE do Último Mês**")
-                # Estrutura de uma DRE típica
-                dre_data = {
-                    'Descrição': [
-                        'Receita Bruta',
-                        '(-) Impostos (15%)',
-                        'Receita Líquida',
-                        '(-) Custo Variável',
-                        'Margem de Contribuição',
-                        '(-) Custo Fixo',
-                        'EBITDA',
-                        '(-) Depreciação/Amortização',
-                        'EBIT',
-                        '(-) Juros e Tributos',
-                        'Lucro Líquido'
-                    ],
-                    'Valor (R$)': [
-                        ultimo_mes['Receita'],
-                        ultimo_mes['Receita'] * 0.15,
-                        ultimo_mes['Faturamento_Liquido'],
-                        ultimo_mes['Custo_Variavel'],
-                        ultimo_mes['Receita'] - ultimo_mes['Custo_Variavel'],
-                        ultimo_mes['Custo_Fixo'],
-                        ultimo_mes['EBITDA'],
-                        ultimo_mes['EBITDA'] - ultimo_mes['EBIT'],
-                        ultimo_mes['EBIT'],
-                        ultimo_mes['EBIT'] - ultimo_mes['Lucro'],
-                        ultimo_mes['Lucro']
-                    ]
-                }
-                
-                dre_df = pd.DataFrame(dre_data)
-                dre_df['% Receita'] = (dre_df['Valor (R$)'] / ultimo_mes['Receita'] * 100).round(1)
-                st.dataframe(dre_df.style.format({
-                    'Valor (R$)': 'R$ {:.2f}',
-                    '% Receita': '{:.1f}%'
-                }), use_container_width=True)
-            
-            with col2:
-                # Gráfico sunburst da composição da DRE
-                fig_dre = px.sunburst(
-                    names=[
-                        'Receita Líquida', 'Custo Variável', 'Custo Fixo', 
-                        'EBITDA', 'EBIT', 'Lucro Líquido'
-                    ],
-                    parents=[
-                        '', 'Receita Líquida', 'Margem de Contribuição',
-                        'Margem de Contribuição', 'EBITDA', 'EBIT'
-                    ],
-                    values=[
-                        ultimo_mes['Faturamento_Liquido'],
-                        ultimo_mes['Custo_Variavel'],
-                        ultimo_mes['Custo_Fixo'],
-                        ultimo_mes['EBITDA'],
-                        ultimo_mes['EBITDA'] - ultimo_mes['EBIT'],
-                        ultimo_mes['Lucro']
-                    ],
-                    title="Composição da DRE - Último Mês"
-                )
-                fig_dre = style_fig(fig_dre)
-                st.plotly_chart(fig_dre, use_container_width=True)
-
-        # Evolução das margens
-        fig_margens = go.Figure()
-        fig_margens.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Margem_Lucro"], name="Margem Líquida", mode="lines+markers", line=dict(width=3)))
-        fig_margens.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Margem_EBITDA"], name="Margem EBITDA", mode="lines+markers", line=dict(width=3)))
-        fig_margens.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Margem_EBIT"], name="Margem EBIT", mode="lines+markers", line=dict(width=3)))
-        fig_margens.update_layout(
-            title="Evolução das Margens (%)",
-            xaxis_title="Mês",
-            yaxis_title="Margem (%)",
-            margin=dict(t=80, b=140, l=80, r=80)
-        )
-        st.plotly_chart(style_fig(fig_margens), use_container_width=True)
-
-    with tab3:
-        st.subheader("Análise de Rentabilidade e Retorno")
-        
-        # ROIC vs ROI
-        fig_roic = go.Figure()
-        fig_roic.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["ROIC"], name="ROIC", mode="lines+markers", 
-                                    line=dict(color="#10b981", width=3)))
-        fig_roic.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["ROI"], name="ROI", mode="lines+markers", 
-                                    line=dict(color="#3b82f6", width=3)))
-        fig_roic.add_hline(y=15, line_dash="dash", line_color="green", annotation_text="Meta ROIC 15%")
-        fig_roic.update_layout(
-            title="ROIC vs ROI - Comparativo de Retorno",
-            xaxis_title="Mês",
-            yaxis_title="Retorno (%)",
-            margin=dict(t=80, b=140, l=80, r=80)
-        )
-        st.plotly_chart(style_fig(fig_roic), use_container_width=True)
-
-        # KPIs de rentabilidade
-        col1, col2, col3, col4 = st.columns(4)
-        with col1: 
-            kpi_card("ROIC Médio", f"{mensal['ROIC'].mean():.1f}%")
-        with col2: 
-            kpi_card("ROI Médio", f"{mensal['ROI'].mean():.1f}%")
-        with col3: 
-            kpi_card("Melhor ROIC", f"{mensal['ROIC'].max():.1f}%")
-        with col4: 
-            kpi_card("Meta ROIC", "15.0%")
-
-        # Ponto de equilíbrio
-        fig_equilibrio = go.Figure()
-        fig_equilibrio.add_trace(go.Bar(x=mensal["Mês"], y=mensal["Receita"], name="Receita", marker_color=PRIMARY))
-        fig_equilibrio.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Ponto_Equilibrio"], name="Ponto de Equilíbrio", 
-                                        mode="lines+markers", line=dict(color="#ef4444", width=3, dash="dash")))
-        fig_equilibrio.update_layout(
-            title="Receita vs Ponto de Equilíbrio",
-            xaxis_title="Mês",
-            yaxis_title="Valor (R$)",
-            margin=dict(t=80, b=140, l=80, r=80)
-        )
-        st.plotly_chart(style_fig(fig_equilibrio, y_fmt=",.2f"), use_container_width=True)
-
-        # Tabela detalhada de rentabilidade
-        st.subheader("Indicadores de Rentabilidade Detalhados")
-        rentabilidade = mensal[["Mês", "Receita", "Lucro", "EBITDA", "EBIT", "ROI", "ROIC", "Margem_Lucro", "Margem_EBITDA"]].round(2)
-        st.dataframe(rentabilidade.style.format({
-            "Receita": "R$ {:.2f}", "Lucro": "R$ {:.2f}", "EBITDA": "R$ {:.2f}", 
-            "EBIT": "R$ {:.2f}", "ROI": "{:.1f}%", "ROIC": "{:.1f}%",
-            "Margem_Lucro": "{:.1f}%", "Margem_EBITDA": "{:.1f}%"
-        }), use_container_width=True)
-
-    with tab4:
-        st.subheader("Balanço Patrimonial e Indicadores de Solidez")
-        
-        if len(mensal) > 0:
-            ultimo_mes = mensal.iloc[-1]
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("**Balanço Patrimonial - Último Mês**")
-                balanco_data = {
-                    'Ativo': [
-                        'Ativo Circulante',
-                        'Ativo Não Circulante',
-                        'Total do Ativo'
-                    ],
-                    'Valor (R$)': [
-                        ultimo_mes['Ativo_Total'] * 0.4,
-                        ultimo_mes['Ativo_Total'] * 0.6,
-                        ultimo_mes['Ativo_Total']
-                    ]
-                }
-                
-                balanco_df = pd.DataFrame(balanco_data)
-                st.dataframe(balanco_df.style.format({
-                    'Valor (R$)': 'R$ {:.2f}'
-                }), use_container_width=True)
-            
-            with col2:
-                st.markdown("**Passivo e Patrimônio Líquido**")
-                passivo_data = {
-                    'Passivo': [
-                        'Passivo Circulante',
-                        'Passivo Não Circulante',
-                        'Patrimônio Líquido',
-                        'Total do Passivo + PL'
-                    ],
-                    'Valor (R$)': [
-                        ultimo_mes['Passivo_Total'] * 0.7,
-                        ultimo_mes['Passivo_Total'] * 0.3,
-                        ultimo_mes['Patrimonio_Liquido'],
-                        ultimo_mes['Passivo_Total'] + ultimo_mes['Patrimonio_Liquido']
-                    ]
-                }
-                
-                passivo_df = pd.DataFrame(passivo_data)
-                st.dataframe(passivo_df.style.format({
-                    'Valor (R$)': 'R$ {:.2f}'
-                }), use_container_width=True)
-
-            # Indicadores de solidez
-            st.markdown("**Indicadores de Solidez Financeira**")
-            indicadores_data = {
-                'Indicador': [
-                    'Grau de Endividamento',
-                    'Liquidez Corrente',
-                    'ROIC',
-                    'Margem Líquida'
-                ],
-                'Valor': [
-                    f"{ultimo_mes['Endividamento']:.1f}%",
-                    f"{ultimo_mes['Liquidez_Corrente']:.2f}",
-                    f"{ultimo_mes['ROIC']:.1f}%",
-                    f"{ultimo_mes['Margem_Lucro']:.1f}%"
-                ],
-                'Interpretação': [
-                    'Aceitável (<60%)' if ultimo_mes['Endividamento'] < 60 else 'Alto',
-                    'Boa (>1.0)' if ultimo_mes['Liquidez_Corrente'] > 1.0 else 'Atenção',
-                    'Bom (>15%)' if ultimo_mes['ROIC'] > 15 else 'Regular',
-                    'Boa (>10%)' if ultimo_mes['Margem_Lucro'] > 10 else 'Regular'
-                ]
-            }
-            
-            indicadores_df = pd.DataFrame(indicadores_data)
-            st.dataframe(indicadores_df, use_container_width=True)
-
-        # Evolução do balanço
-        fig_balanco = go.Figure()
-        fig_balanco.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Ativo_Total"], name="Ativo Total", mode="lines+markers", line=dict(width=3)))
-        fig_balanco.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Passivo_Total"], name="Passivo Total", mode="lines+markers", line=dict(width=3)))
-        fig_balanco.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Patrimonio_Liquido"], name="Patrimônio Líquido", mode="lines+markers", line=dict(width=3)))
-        fig_balanco.update_layout(
-            title="Evolução do Balanço Patrimonial",
-            xaxis_title="Mês",
-            yaxis_title="Valor (R$)",
-            margin=dict(t=80, b=140, l=80, r=80)
-        )
-        st.plotly_chart(style_fig(fig_balanco, y_fmt=",.2f"), use_container_width=True)
-
-        # Indicadores de estrutura
-        fig_estrutura = go.Figure()
-        fig_estrutura.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Endividamento"], name="Grau de Endividamento", mode="lines+markers", line=dict(width=3)))
-        fig_estrutura.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Liquidez_Corrente"], name="Liquidez Corrente", mode="lines+markers", line=dict(width=3), yaxis="y2"))
-        fig_estrutura.update_layout(
-            title="Indicadores de Estrutura Financeira",
-            xaxis_title="Mês",
-            yaxis=dict(title="Endividamento (%)"),
-            yaxis2=dict(overlaying="y", side="right", title="Liquidez Corrente"),
-            margin=dict(t=80, b=140, l=80, r=80)
-        )
-        st.plotly_chart(style_fig(fig_estrutura), use_container_width=True)
+    with tabs[3]:
+        st.plotly_chart(_line(resumo, "ROI", "ROI (%) por Período", yfmt=",.2f", color="#7E7E7E"), use_container_width=True)
+        df_download_button(resumo[["Periodo","ROI"]], "⬇️ CSV ROI", "fin_roi.csv")
 
 def page_eco():
     """
@@ -2111,17 +1837,23 @@ def page_eco():
         if "Selic" in eco_mensal.columns and eco_mensal["Selic"].notna().any():
             fig = px.line(eco_mensal, x="Data", y="Selic", title="Evolução SELIC (%) — Mensal")
             fig.update_layout(margin=dict(t=80, b=140, l=80, r=80))
-            st.plotly_chart(style_fig(fig), use_container_width=True)
+            fig = style_fig(fig)
+            fig = time_axes_enhance(fig)
+            st.plotly_chart(fig, use_container_width=True)
 
         if "IPCA" in eco_mensal.columns and eco_mensal["IPCA"].notna().any():
             fig = px.line(eco_mensal, x="Data", y="IPCA", title="Evolução IPCA (%) — Mensal")
             fig.update_layout(margin=dict(t=80, b=140, l=80, r=80))
-            st.plotly_chart(style_fig(fig), use_container_width=True)
+            fig = style_fig(fig)
+            fig = time_axes_enhance(fig)
+            st.plotly_chart(fig, use_container_width=True)
 
         if "Inadimplencia" in eco_mensal.columns and eco_mensal["Inadimplencia"].notna().any():
             fig = px.area(eco_mensal, x="Data", y="Inadimplencia", title="Evolução da Inadimplência (%) — Mensal")
             fig.update_layout(margin=dict(t=80, b=140, l=80, r=80))
-            st.plotly_chart(style_fig(fig), use_container_width=True)
+            fig = style_fig(fig)
+            fig = time_axes_enhance(fig)
+            st.plotly_chart(fig, use_container_width=True)
 
 def page_simulacaologin():
     """
@@ -2430,10 +2162,10 @@ def page_simulacaologin():
         
         with col1:
             st.markdown("**Simulação Rápida**")
-            num_cupons_simular = st.slider("Número de cupons para simular", 1, 50, 10)
-            valor_medio_simular = st.slider("Valor médio por cupom (R$)", 10.0, 500.0, 100.0)
+            num_cupons_simular = st.slider("Número de cupons para simular", 1, 50, 10, key="sim_num")
+            valor_medio_simular = st.slider("Valor médio por cupom (R$)", 10.0, 500.0, 100.0, key="sim_valor")
             
-            if st.button("🚀 Executar Simulação", use_container_width=True):
+            if st.button("🚀 Executar Simulação", use_container_width=True, key="sim_btn"):
                 # Simula vários cupons de uma vez
                 for i in range(num_cupons_simular):
                     cupom_simulado = {
@@ -2452,13 +2184,14 @@ def page_simulacaologin():
             cupons_desejados = st.number_input("Cupons para próximo nível", 
                                              min_value=cupons_usados+1, 
                                              max_value=100, 
-                                             value=min(cupons_usados+10, 100))
+                                             value=min(cupons_usados+10, 100),
+                                             key="calc_cupons")
             
             if proximo_nivel_info:
                 cupons_necessarios = proximo_nivel_info["cupons_necessarios"] - cupons_usados
                 st.info(f"📊 Para **{proximo_nivel_info['nome']}**: mais **{cupons_necessarios}** cupons")
                 
-                cupons_por_semana = st.slider("Cupons por semana", 1, 20, 5)
+                cupons_por_semana = st.slider("Cupons por semana", 1, 20, 5, key="calc_semana")
                 semanas_necessarias = max(1, cupons_necessarios // cupons_por_semana) if cupons_por_semana > 0 else 0
                 st.markdown(f'<div class="black-metric-label">⏱️ Tempo estimado</div><div class="black-metric-value">{semanas_necessarias} semanas</div>', unsafe_allow_html=True)
 
