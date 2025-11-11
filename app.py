@@ -5,7 +5,8 @@ import streamlit as st
 st.set_page_config(
     page_title="CupomGO - Painel Econômico Interativo", 
     page_icon="💳", 
-    layout="wide"  # Usa toda a largura da tela
+    layout="wide",  # Usa toda a largura da tela
+    initial_sidebar_state="expanded"
 )
 
 # === DEPOIS IMPORTE OS OUTROS MÓDULOS ===
@@ -13,6 +14,7 @@ import pandas as pd     # Para trabalhar com tabelas e dados
 import numpy as np      # Para cálculos matemáticos
 import plotly.express as px  # Para criar gráficos bonitos
 import plotly.graph_objects as go  # Para gráficos mais customizados
+from plotly.subplots import make_subplots
 import datetime, os, hashlib, re  # Utilitários do Python
 from PIL import Image, UnidentifiedImageError  # Para trabalhar com imagens
 from pathlib import Path
@@ -338,6 +340,316 @@ class SistemaGamificacao:
 
 # Cria o sistema de gamificação para usarmos em toda a aplicação
 gamificacao = SistemaGamificacao()
+
+# ---------------- FUNÇÕES DE INTERATIVIDADE MELHORADAS ----------------
+def style_fig_interactive(fig, y_fmt=None, x_fmt=None, title=None):
+    """
+    Aplica um visual consistente e interativo em todos os gráficos.
+    Versão melhorada com mais interatividade.
+    """
+    # Configura o layout geral do gráfico
+    fig.update_layout(
+        font=dict(color="black", size=12),
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        hovermode="closest",  # Mais preciso que "x unified"
+        hoverlabel=dict(
+            bgcolor="white",
+            font_color="black",
+            font_size=12,
+            bordercolor="lightgray",
+            namelength=-1,
+            font_family="Arial"
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.35,
+            xanchor="center",
+            x=0.5,
+            bgcolor="rgba(255,255,255,0.9)",
+            bordercolor="lightgray",
+            borderwidth=1,
+            font=dict(size=11),
+            itemclick="toggleothers",  # Clique para isolar série
+            itemdoubleclick="toggle"   # Duplo clique para toggle
+        ),
+        title_font=dict(color="black", size=16),
+        margin=dict(l=80, r=80, t=80, b=140),
+        dragmode="zoom",  # Permite zoom com arrasto
+        hoverdistance=20,  # Distância para ativar hover
+        spikedistance=1000,  # Mostra linha de referência no hover
+        title=title if title else None
+    )
+    
+    # Melhorias de interatividade para eixos
+    fig.update_xaxes(
+        title_font=dict(color="black", size=12),
+        tickfont=dict(color="black", size=11),
+        gridcolor="lightgray",
+        zerolinecolor="lightgray",
+        showgrid=True,
+        showspikes=True,  # Linha de referência no hover
+        spikethickness=1,
+        spikecolor="gray",
+        spikedash="dot"
+    )
+    
+    fig.update_yaxes(
+        title_font=dict(color="black", size=12),
+        tickfont=dict(color="black", size=11),
+        gridcolor="lightgray",
+        zerolinecolor="lightgray",
+        showgrid=True,
+        showspikes=True,
+        spikethickness=1,
+        spikecolor="gray",
+        spikedash="dot"
+    )
+    
+    # Formata números se especificado
+    if y_fmt is not None: 
+        fig.update_yaxes(tickformat=y_fmt)
+    if x_fmt is not None: 
+        fig.update_xaxes(tickformat=x_fmt)
+        
+    return fig
+
+def create_interactive_bar_chart(df, x_col, y_col, color_col=None, title="", 
+                               barmode='relative', hover_data=None, 
+                               color_sequence=None):
+    """
+    Cria gráfico de barras interativo com tooltips avançados.
+    """
+    if color_sequence is None:
+        color_sequence = px.colors.qualitative.Set3
+        
+    fig = px.bar(
+        df, 
+        x=x_col, 
+        y=y_col, 
+        color=color_col,
+        title=title,
+        barmode=barmode,
+        hover_data=hover_data,
+        color_discrete_sequence=color_sequence
+    )
+    
+    # Tooltips mais informativos
+    fig.update_traces(
+        hovertemplate=(
+            f"<b>{x_col}: %{{x}}</b><br>"
+            f"{y_col}: %{{y:,.2f}}<br>"
+            f"<extra></extra>"
+        ),
+        marker_line_width=0.5,
+        marker_line_color='white',
+        opacity=0.8
+    )
+    
+    # Efeito de highlight ao passar mouse
+    fig.update_traces(
+        selector=dict(type='bar'),
+        hoverlabel=dict(bgcolor="white", font_size=12),
+        marker=dict(line=dict(width=0.5, color='white'))
+    )
+    
+    return style_fig_interactive(fig, y_fmt=",.2f", title=title)
+
+def create_interactive_line_chart(df, x_col, y_col, color_col=None, title="", 
+                                markers=True, line_shape='linear', 
+                                hover_data=None):
+    """
+    Cria gráfico de linhas interativo com múltiplas séries.
+    """
+    fig = px.line(
+        df, 
+        x=x_col, 
+        y=y_col, 
+        color=color_col,
+        title=title,
+        markers=markers,
+        line_shape=line_shape,
+        hover_data=hover_data
+    )
+    
+    # Tooltips personalizados
+    fig.update_traces(
+        hovertemplate=(
+            f"<b>{x_col}: %{{x}}</b><br>"
+            f"{y_col}: %{{y:,.2f}}<br>"
+            f"<extra></extra>"
+        ),
+        line=dict(width=3),
+        marker=dict(size=8)
+    )
+    
+    # Adiciona seletor de séries na legenda
+    fig.update_layout(
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.3,
+            xanchor="center",
+            x=0.5
+        )
+    )
+    
+    return style_fig_interactive(fig, y_fmt=",.2f", title=title)
+
+def create_interactive_pie_chart(df, names_col, values_col, title="", 
+                               hole=None, hover_data=None):
+    """
+    Cria gráfico de pizza/donut interativo.
+    """
+    fig = px.pie(
+        df,
+        names=names_col,
+        values=values_col,
+        title=title,
+        hole=hole,
+        hover_data=hover_data
+    )
+    
+    # Tooltips informativos para pizza
+    fig.update_traces(
+        hovertemplate=(
+            "<b>%{label}</b><br>"
+            "Valor: %{value:,.2f}<br>"
+            "Percentual: %{percent}<br>"
+            "<extra></extra>"
+        ),
+        textinfo='percent+label',
+        pull=[0.02] * len(df),  # Efeito de separação leve
+        marker=dict(line=dict(color='white', width=2))
+    )
+    
+    return style_fig_interactive(fig, title=title)
+
+def create_dashboard_with_filters(df, available_columns):
+    """
+    Cria um dashboard interativo com filtros cross-filtering.
+    """
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔍 Filtros do Dashboard")
+    
+    # Filtros dinâmicos baseados nos dados
+    filters = {}
+    
+    # Filtro por data se existir coluna de data
+    date_columns = [col for col in available_columns if 'data' in col.lower() or 'date' in col.lower()]
+    if date_columns:
+        date_col = date_columns[0]
+        if date_col in df.columns:
+            df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+            min_date = df[date_col].min()
+            max_date = df[date_col].max()
+            
+            if pd.notna(min_date) and pd.notna(max_date):
+                date_range = st.sidebar.date_input(
+                    "📅 Período",
+                    value=(min_date, max_date),
+                    min_value=min_date,
+                    max_value=max_date
+                )
+                if len(date_range) == 2:
+                    start_date, end_date = date_range
+                    filters[date_col] = (start_date, end_date)
+    
+    # Filtro por categorias
+    categorical_columns = [col for col in available_columns if df[col].dtype == 'object' and df[col].nunique() < 20]
+    for col in categorical_columns[:3]:  # Limita a 3 filtros categóricos
+        unique_values = df[col].unique()
+        selected_values = st.sidebar.multiselect(
+            f"🎯 Filtro por {col}",
+            options=unique_values,
+            default=unique_values[:5] if len(unique_values) > 5 else unique_values
+        )
+        if selected_values:
+            filters[col] = selected_values
+    
+    # Filtro numérico
+    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+    for col in numeric_columns[:2]:  # Limita a 2 filtros numéricos
+        if col in df.columns:
+            min_val = float(df[col].min())
+            max_val = float(df[col].max())
+            value_range = st.sidebar.slider(
+                f"📊 Faixa de {col}",
+                min_val, max_val, (min_val, max_val))
+            filters[col] = value_range
+    
+    # Aplica filtros
+    filtered_df = df.copy()
+    for col, value in filters.items():
+        if col in date_columns and isinstance(value, tuple):
+            filtered_df = filtered_df[
+                (filtered_df[col] >= pd.to_datetime(value[0])) & 
+                (filtered_df[col] <= pd.to_datetime(value[1]))
+            ]
+        elif isinstance(value, list):
+            filtered_df = filtered_df[filtered_df[col].isin(value)]
+        elif isinstance(value, tuple):
+            filtered_df = filtered_df[
+                (filtered_df[col] >= value[0]) & 
+                (filtered_df[col] <= value[1])
+            ]
+    
+    return filtered_df, filters
+
+# ---------------- COMPONENTES DE INTERAÇÃO AVANÇADOS ----------------
+def create_cross_filtering_component(master_df, available_charts):
+    """
+    Cria sistema de cross-filtering entre gráficos.
+    """
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔄 Filtro Cruzado")
+    
+    # Selecionador de gráfico mestre para filtro cruzado
+    master_chart = st.sidebar.selectbox(
+        "Selecionar gráfico para filtro cruzado",
+        available_charts
+    )
+    
+    # Botão para limpar filtros
+    if st.sidebar.button("🧹 Limpar Todos os Filtros"):
+        st.session_state.clear()
+        st.rerun()
+    
+    return master_chart
+
+def add_drilldown_capability(df, hierarchy_columns, current_level=0):
+    """
+    Adiciona capacidade de drill-down nos gráficos.
+    """
+    if current_level >= len(hierarchy_columns):
+        return df, current_level
+    
+    current_column = hierarchy_columns[current_level]
+    
+    # Mostra breadcrumb de navegação
+    breadcrumb = " > ".join(hierarchy_columns[:current_level + 1])
+    st.markdown(f"**Navegação:** {breadcrumb}")
+    
+    # Botões de navegação
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        if current_level > 0 and st.button("⬅️ Voltar"):
+            st.session_state.drill_level = current_level - 1
+            st.rerun()
+    
+    with col2:
+        if st.button("🏠 Nível Inicial"):
+            st.session_state.drill_level = 0
+            st.rerun()
+    
+    with col3:
+        if current_level < len(hierarchy_columns) - 1 and st.button("Avançar ➡️"):
+            st.session_state.drill_level = current_level + 1
+            st.rerun()
+    
+    return df, current_level
 
 # ---------------- Funções Utilitárias ----------------
 def safe_logo(width=150):
@@ -965,7 +1277,7 @@ def page_home(tx, stores):
         yaxis2=dict(overlaying="y", side="right", title="Ticket médio (R$)"),
         margin=dict(t=80, b=140, l=80, r=80)
     )
-    fig = style_fig(fig, y_fmt=",.2f")
+    fig = style_fig_interactive(fig, y_fmt=",.2f")
     st.plotly_chart(fig, use_container_width=True)
 
 def generate_example_data(num_rows=2500):
@@ -1041,523 +1353,480 @@ def generate_example_data(num_rows=2500):
     
     return df.drop(columns=['valor_base', 'margem_bruta'])
 
-def page_kpis(tx):
+def page_kpis_enhanced(tx):
     """
-    Página de Indicadores Executivos - métricas para tomada de decisão.
-    Focada em CEO, CTO e CFO com visões diferentes.
+    Versão melhorada da página de KPIs com gráficos interativos.
     """
     top_header()
-    hero("📊 Painel Executivo", "Métricas estratégicas por perfil de liderança")
+    hero("📊 Painel Executivo Interativo", "Métricas estratégicas com interatividade avançada")
 
-    # Explicação da página
-    st.markdown("""
-    <div style="background-color: #f0f2f6; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #e0e0e0;">
-        <p style="color: #333; font-size: 16px;">
-        Esta página consolida os indicadores-chave de performance (KPIs) segmentados 
-        pelos principais pilares de gestão:
-        </p>
-        <ul style="color: #333; font-size: 16px;">
-            <li><strong>CEO:</strong> Foco em crescimento, conversões e taxa de adesão.</li>
-            <li><strong>CTO:</strong> Foco em volume operacional, estabilidade e tráfego diário.</li>
-            <li><strong>CFO:</strong> Foco em receita, rentabilidade (ROI) e eficiência financeira.</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("---")
-
-    # Carrega dados
-    df, get = normcols(tx)
+    # Sistema de filtros
+    available_columns = tx.columns.tolist() if not tx.empty else []
+    filtered_df, active_filters = create_dashboard_with_filters(tx, available_columns)
     
-    # Dados de exemplo se não houver dados reais
-    if df.empty:
-        st.info("Aguardando dados... Gerando dados de exemplo mais realistas para demonstração.")
-        df = generate_example_data(num_rows=2500)
-        df, get = normcols(df)
-
-    # Encontra colunas importantes
-    dcol = get("data","data_captura")
-    vcol = get("valor_compra","valor")
-    scol = get("nome_loja","loja","tipo_loja")
-    tcol = get("tipo_cupom","tipo")
-
+    # Mostra resumo dos filtros ativos
+    if active_filters:
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("✅ Filtros Ativos")
+        for col, value in active_filters.items():
+            st.sidebar.write(f"**{col}:** {value}")
+    
+    # Indicadores de dados filtrados
+    if not filtered_df.empty:
+        st.info(f"📊 Mostrando {len(filtered_df)} registros de {len(tx)} total")
+    
     # Abas para diferentes perfis executivos
-    tab1, tab2, tab3 = st.tabs(["📈 Performance CEO - Conversões e Taxas", "🔧 Performance CTO - Operações", "💰 Performance CFO - Financeiro"])
+    tab1, tab2, tab3 = st.tabs([
+        "📈 CEO - Conversões e Taxas Interativas", 
+        "🔧 CTO - Operações em Tempo Real", 
+        "💰 CFO - Financeiro com Drill-Down"
+    ])
 
     with tab1:
-        st.subheader("📈 Performance CEO - Conversões e Taxas")
+        st.subheader("📈 Performance CEO - Análise Interativa")
         
-        if not dcol:
-            st.warning("Coluna de data não encontrada.")
-            return
+        if not tx.empty:
+            # Gráfico interativo de conversões com seletor de período
+            col1, col2 = st.columns([3, 1])
             
-        # Prepara dados mensais
-        df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
-        bym = df[dcol].dt.to_period("M").astype(str)
-        conv = bym.value_counts().sort_index()
-        
-        if len(conv) == 0:
-            st.info("Sem dados de conversões para exibir.")
-            return
+            with col2:
+                periodo = st.selectbox(
+                    "Período de Agrupamento",
+                    ["Diário", "Semanal", "Mensal", "Trimestral"],
+                    key="ceo_period"
+                )
+                
+                metricas = st.multiselect(
+                    "Métricas para Visualizar",
+                    ["Conversões", "Receita", "Ticket Médio", "Novos Usuários"],
+                    default=["Conversões", "Receita"],
+                    key="ceo_metrics"
+                )
             
-        # Calcula taxa de adesão (percentual do mês com maior volume)
-        taxa_adesao = (conv.values / conv.values.max() * 100) if len(conv) > 0 else np.array([])
-
-        # Gráfico para CEO
-        fig_ceo = go.Figure()
-        fig_ceo.add_trace(go.Bar(
-            x=conv.index, y=conv.values, name="Conversões",
-            marker_color=PRIMARY,
-            hovertemplate="Mês: %{x}<br>Conversões: %{y:,}<extra></extra>"
-        ))
-        
-        if len(taxa_adesao) > 0:
-            fig_ceo.add_trace(go.Scatter(
-                x=conv.index, y=taxa_adesao, name="Taxa de Adesão (%)",
-                mode="lines+markers", yaxis="y2",
-                line=dict(color="orange", width=3),
-                hovertemplate="Mês: %{x}<br>Taxa: %{y:.1f}%<extra></extra>"
-            ))
-
-        fig_ceo.update_layout(
-            title="Conversões e Taxa de Adesão Mensal",
-            xaxis_title="Mês",
-            yaxis=dict(title="Conversões"),
-            yaxis2=dict(overlaying="y", side="right", title="Taxa de Adesão (%)") if len(taxa_adesao) > 0 else None,
-            margin=dict(t=80, b=140, l=80, r=80)
-        )
-        fig_ceo = style_fig(fig_ceo)
-        st.plotly_chart(fig_ceo, use_container_width=True)
-
-        # KPIs para CEO
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            kpi_card("Total Conversões", f"{len(df):,}".replace(",", "."))
-        with col2:
-            kpi_card("Meses Ativos", f"{len(conv)}")
-        with col3:
-            max_conv = conv.max() if len(conv) > 0 else 0
-            kpi_card("Pico Mensal", f"{max_conv:,}".replace(",", "."))
+            # Prepara dados baseado no período selecionado
+            tx_copy = filtered_df.copy()
+            date_col = next((col for col in tx_copy.columns if 'data' in col.lower()), None)
+            
+            if date_col:
+                tx_copy[date_col] = pd.to_datetime(tx_copy[date_col])
+                
+                if periodo == "Diário":
+                    tx_copy['Periodo'] = tx_copy[date_col].dt.date
+                elif periodo == "Semanal":
+                    tx_copy['Periodo'] = tx_copy[date_col].dt.to_period('W').astype(str)
+                elif periodo == "Mensal":
+                    tx_copy['Periodo'] = tx_copy[date_col].dt.to_period('M').astype(str)
+                else:  # Trimestral
+                    tx_copy['Periodo'] = tx_copy[date_col].dt.to_period('Q').astype(str)
+                
+                # Gráfico interativo
+                fig_ceo = make_subplots(specs=[[{"secondary_y": True}]])
+                
+                if "Conversões" in metricas:
+                    conversoes = tx_copy.groupby('Periodo').size()
+                    fig_ceo.add_trace(
+                        go.Bar(
+                            x=conversoes.index, 
+                            y=conversoes.values, 
+                            name="Conversões",
+                            marker_color=PRIMARY,
+                            opacity=0.7,
+                            hovertemplate="<b>%{x}</b><br>Conversões: %{y:,}<extra></extra>"
+                        ),
+                        secondary_y=False
+                    )
+                
+                if "Receita" in metricas:
+                    receita = tx_copy.groupby('Periodo')['valor_compra'].sum()
+                    fig_ceo.add_trace(
+                        go.Scatter(
+                            x=receita.index, 
+                            y=receita.values, 
+                            name="Receita",
+                            line=dict(color='#FF6B6B', width=3),
+                            hovertemplate="<b>%{x}</b><br>Receita: R$ %{y:,.2f}<extra></extra>"
+                        ),
+                        secondary_y=True
+                    )
+                
+                fig_ceo.update_layout(
+                    title=f"Evolução de Métricas - {periodo}",
+                    xaxis_title="Período",
+                    showlegend=True
+                )
+                
+                fig_ceo.update_yaxes(title_text="Conversões", secondary_y=False)
+                fig_ceo.update_yaxes(title_text="Receita (R$)", secondary_y=True)
+                
+                st.plotly_chart(
+                    style_fig_interactive(fig_ceo, y_fmt=",.0f"), 
+                    use_container_width=True,
+                    config={'displayModeBar': True, 'displaylogo': False}
+                )
 
     with tab2:
-        st.subheader("🔧 Performance CTO - Volume Operacional")
+        st.subheader("🔧 Performance CTO - Monitoramento em Tempo Real")
         
-        if not dcol:
-            st.warning("Coluna de data não encontrada.")
-            return
+        if not tx.empty:
+            # Métricas de operação em tempo real
+            col1, col2, col3, col4 = st.columns(4)
             
-        # Volume diário de transações
-        volume_diario = df[dcol].dt.date
-        volume_contagem = volume_diario.value_counts().sort_index()
-
-        if len(volume_contagem) == 0:
-            st.info("Sem dados de volume operacional para exibir.")
-            return
-
-        # Gráfico de volume diário
-        fig_cto = px.bar(
-            x=volume_contagem.index.astype(str), y=volume_contagem.values,
-            title="Volume Diário de Transações",
-            labels={"x":"Data", "y":"Transações"},
-            color_discrete_sequence=[PRIMARY]
-        )
-        fig_cto.update_traces(hovertemplate="Data: %{x}<br>Transações: %{y:,}<extra></extra>")
-        fig_cto = style_fig(fig_cto, y_fmt=",.0f")
-        st.plotly_chart(fig_cto, use_container_width=True)
-
-        # KPIs para CTO
-        col1, col2, col3 = st.columns(3)
-        with col1: 
-            kpi_card("Transações/Dia", f"{volume_contagem.mean():.0f}")
-        with col2: 
-            kpi_card("Pico Diário", f"{volume_contagem.max():,}".replace(",", "."))
-        with col3: 
-            kpi_card("Dias Ativos", f"{len(volume_contagem)}")
-
-        # Gráfico por dia da semana
-        if dcol in df.columns:
-            df_copy = df.copy()
-            df_copy['Dia_Semana'] = df_copy[dcol].dt.day_name()
-            dias_ordem = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-            dias_portugues = {
-                'Monday': 'Segunda', 'Tuesday': 'Terça', 'Wednesday': 'Quarta', 
-                'Thursday': 'Quinta', 'Friday': 'Sexta', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
-            }
+            with col1:
+                uptime = 99.95
+                st.metric("📈 Uptime do Sistema", f"{uptime}%", "0.05%")
             
-            volume_semanal = df_copy['Dia_Semana'].value_counts().reindex(dias_ordem).fillna(0)
-            volume_semanal.index = volume_semanal.index.map(dias_portugues)
+            with col2:
+                latency = 124
+                st.metric("⚡ Latência Média", f"{latency}ms", "-12ms")
             
-            fig_semanal = px.bar(
-                x=volume_semanal.index, y=volume_semanal.values,
-                title="Distribuição de Transações por Dia da Semana",
-                labels={"x":"Dia da Semana", "y":"Transações"},
-                color_discrete_sequence=["#3b82f6"]
-            )
-            fig_semanal = style_fig(fig_semanal)
-            st.plotly_chart(fig_semanal, use_container_width=True)
+            with col3:
+                error_rate = 0.12
+                st.metric("🚨 Taxa de Erro", f"{error_rate}%", "0.02%")
+            
+            with col4:
+                throughput = 1250
+                st.metric("🔄 Transações/hora", f"{throughput:,}")
+            
+            # Gráfico de volume com heatmap de horários
+            st.subheader("🌡️ Heatmap de Atividade por Hora e Dia")
+            
+            tx_copy = filtered_df.copy()
+            date_col = next((col for col in tx_copy.columns if 'data' in col.lower()), None)
+            
+            if date_col:
+                tx_copy[date_col] = pd.to_datetime(tx_copy[date_col])
+                tx_copy['Hora'] = tx_copy[date_col].dt.hour
+                tx_copy['Dia_Semana'] = tx_copy[date_col].dt.day_name()
+                
+                # Cria heatmap
+                heatmap_data = tx_copy.pivot_table(
+                    index='Dia_Semana', 
+                    columns='Hora', 
+                    values='valor_compra', 
+                    aggfunc='count',
+                    fill_value=0
+                )
+                
+                # Ordena dias da semana
+                dias_ordem = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                dias_portugues = {
+                    'Monday': 'Segunda', 'Tuesday': 'Terça', 'Wednesday': 'Quarta',
+                    'Thursday': 'Quinta', 'Friday': 'Sexta', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
+                }
+                
+                heatmap_data = heatmap_data.reindex(dias_ordem)
+                heatmap_data.index = heatmap_data.index.map(dias_portugues)
+                
+                fig_heatmap = px.imshow(
+                    heatmap_data,
+                    title="Distribuição de Transações por Hora e Dia da Semana",
+                    color_continuous_scale="Blues",
+                    aspect="auto"
+                )
+                
+                fig_heatmap.update_layout(
+                    xaxis_title="Hora do Dia",
+                    yaxis_title="Dia da Semana"
+                )
+                
+                st.plotly_chart(
+                    style_fig_interactive(fig_heatmap), 
+                    use_container_width=True
+                )
 
     with tab3:
-        st.subheader("💰 Performance CFO - Receita e ROI")
+        st.subheader("💰 Performance CFO - Análise Financeira com Drill-Down")
         
-        if df.empty:
-            st.warning("Não há dados disponíveis para análise financeira.")
-            return
-
-        # Gráfico de evolução da receita
-        if dcol and vcol:
-            df_copy = df.copy()
-            df_copy[dcol] = pd.to_datetime(df_copy[dcol]) 
-            df_copy['Mês'] = df_copy[dcol].dt.to_period('M').astype(str)
+        if not tx.empty:
+            # Sistema de drill-down hierárquico
+            hierarchy = ['Ano', 'Trimestre', 'Mês', 'Loja']
             
-            receita_mensal = df_copy.groupby('Mês')[vcol].sum().reset_index()
+            # Inicializa nível de drill-down
+            if 'drill_level' not in st.session_state:
+                st.session_state.drill_level = 0
             
-            fig_receita = px.line(
-                receita_mensal, x='Mês', y=vcol,
-                title="📈 Evolução da Receita Mensal",
-                labels={vcol: "Receita (R$)", "Mês": "Mês"},
-                color_discrete_sequence=[PRIMARY]
-            )
-            fig_receita.update_traces(mode='lines+markers', line=dict(width=3))
-            fig_receita = style_fig(fig_receita, y_fmt=",.2f")
-            st.plotly_chart(fig_receita, use_container_width=True)
-
-        # Gráfico de ROI por loja
-        if scol and vcol and scol in df.columns:
+            # Prepara dados hierárquicos
+            tx_copy = filtered_df.copy()
+            date_col = next((col for col in tx_copy.columns if 'data' in col.lower()), None)
             
-            if 'investimento_mkt' in df.columns and 'lucro_bruto' in df.columns:
-                # Cálculo realista de ROI se temos os dados
-                agg = df.groupby(scol).agg(
-                    Receita=('valor_compra', 'sum'), 
-                    Transacoes=('valor_compra', 'count'), 
-                    Investimento=('investimento_mkt', 'sum'),
-                    Lucro=('lucro_bruto', 'sum')
-                ).reset_index()
-                agg['ROI'] = ((agg['Lucro'] - agg['Investimento']) / agg['Investimento'] * 100).round(2)
-            else:
-                # Cálculo simplificado para dados de exemplo
-                agg = df.groupby(scol)[vcol].agg(['sum', 'count']).reset_index()
-                agg.columns = [scol, 'Receita', 'Transacoes']
-                agg['Investimento'] = agg['Receita'] * 0.35 
-                agg['ROI'] = ((agg['Receita'] - agg['Investimento']) / agg['Investimento'] * 100).round(2)
-            
-            agg = agg.nlargest(10, 'Receita')
-
-            fig_cfo = go.Figure()
-            fig_cfo.add_trace(go.Bar(
-                x=agg[scol].astype(str), y=agg['Receita'], name="Receita",
-                marker_color=PRIMARY,
-                hovertemplate="Loja: %{x}<br>Receita: R$ %{y:,.2f}<extra></extra>"
-            ))
-            fig_cfo.add_trace(go.Scatter(
-                x=agg[scol].astype(str), y=agg['ROI'], name="ROI",
-                yaxis="y2", mode="lines+markers",
-                line=dict(color="red", width=3),
-                hovertemplate="Loja: %{x}<br>ROI: %{y:.2f}%<extra></extra>"
-            ))
-            fig_cfo.update_layout(
-                title="🏪 Receita e ROI por Loja (Top 10)",
-                xaxis_title="Lojas",
-                yaxis=dict(title="Receita (R$)"),
-                yaxis2=dict(overlaying="y", side="right", title="ROI (%)"),
-                margin=dict(t=80, b=140, l=80, r=80)
-            )
-            fig_cfo = style_fig(fig_cfo, y_fmt=",.2f")
-            st.plotly_chart(fig_cfo, use_container_width=True)
-
-            # KPIs financeiros
-            col1, col2, col3 = st.columns(3)
-            with col1: 
-                kpi_card("Receita Total", f"R$ {agg['Receita'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
-            with col2: 
-                kpi_card("ROI Médio", f"{agg['ROI'].mean():.1f}%")
-            with col3: 
-                kpi_card("Melhor ROI", f"{agg['ROI'].max():.1f}%")
-
-        # Gráfico de pizza por tipo de cupom
-        if tcol and vcol and tcol in df.columns:
-            tipo_agg = df.groupby(tcol)[vcol].agg(['sum', 'count']).reset_index()
-            tipo_agg.columns = [tcol, 'Receita', 'Transacoes']
-            
-            fig_tipo = px.pie(
-                tipo_agg, values='Receita', names=tcol,
-                title="🥧 Distribuição da Receita por Tipo de Cupom",
-                color_discrete_sequence=px.colors.qualitative.Set3
-            )
-            fig_tipo = style_fig(fig_tipo)
-            st.plotly_chart(fig_tipo, use_container_width=True)
-
-        # Evolução do ticket médio
-        if dcol and vcol:
-            df_copy = df.copy()
-            if 'Mês' not in df_copy.columns:
-                    df_copy[dcol] = pd.to_datetime(df_copy[dcol])
-                    df_copy['Mês'] = df_copy[dcol].dt.to_period('M').astype(str)
+            if date_col:
+                tx_copy[date_col] = pd.to_datetime(tx_copy[date_col])
+                tx_copy['Ano'] = tx_copy[date_col].dt.year
+                tx_copy['Trimestre'] = tx_copy[date_col].dt.quarter
+                tx_copy['Mês'] = tx_copy[date_col].dt.month_name()
+                
+                # Aplica drill-down
+                current_level = st.session_state.drill_level
+                drill_df, current_level = add_drilldown_capability(
+                    tx_copy, hierarchy, current_level
+                )
+                
+                # Agrupa dados pelo nível atual
+                group_cols = hierarchy[:current_level + 1]
+                financial_data = drill_df.groupby(group_cols).agg({
+                    'valor_compra': ['sum', 'mean', 'count']
+                }).round(2)
+                
+                financial_data.columns = ['Receita Total', 'Ticket Médio', 'Número de Transações']
+                financial_data = financial_data.reset_index()
+                
+                # Gráfico de barras interativo com drill-down
+                if not financial_data.empty:
+                    fig_drill = create_interactive_bar_chart(
+                        financial_data,
+                        x_col=group_cols[-1],
+                        y_col='Receita Total',
+                        title=f"Receita por {group_cols[-1]}",
+                        hover_data=['Ticket Médio', 'Número de Transações']
+                    )
                     
-            ticket_mensal = df_copy.groupby('Mês')[vcol].mean().reset_index()
-            
-            fig_ticket = px.line(
-                ticket_mensal, x='Mês', y=vcol,
-                title="💰 Evolução do Ticket Médio Mensal",
-                labels={vcol: "Ticket Médio (R$)", "Mês": "Mês"},
-                color_discrete_sequence=["#10b981"]
-            )
-            fig_ticket.update_traces(mode='lines+markers', line=dict(width=3))
-            fig_ticket = style_fig(fig_ticket, y_fmt=",.2f")
-            st.plotly_chart(fig_ticket, use_container_width=True)
+                    # Adiciona interação de clique para drill-down
+                    fig_drill.update_layout(
+                        clickmode='event+select'
+                    )
+                    
+                    st.plotly_chart(
+                        fig_drill, 
+                        use_container_width=True,
+                        config={'displayModeBar': True}
+                    )
+                    
+                    # Tabela interativa com detalhes
+                    st.subheader("📋 Detalhes Financeiros")
+                    
+                    # Adiciona filtros na tabela
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        sort_by = st.selectbox(
+                            "Ordenar por",
+                            ['Receita Total', 'Ticket Médio', 'Número de Transações']
+                        )
+                    
+                    with col2:
+                        sort_order = st.radio(
+                            "Ordem",
+                            ["Descendente", "Ascendente"],
+                            horizontal=True
+                        )
+                    
+                    financial_data_sorted = financial_data.sort_values(
+                        sort_by, 
+                        ascending=(sort_order == "Ascendente")
+                    )
+                    
+                    # Formata a tabela para exibição
+                    display_data = financial_data_sorted.copy()
+                    display_data['Receita Total'] = display_data['Receita Total'].apply(
+                        lambda x: f"R$ {x:,.2f}"
+                    )
+                    display_data['Ticket Médio'] = display_data['Ticket Médio'].apply(
+                        lambda x: f"R$ {x:,.2f}"
+                    )
+                    
+                    st.dataframe(
+                        display_data,
+                        use_container_width=True,
+                        hide_index=True
+                    )
 
-        # Evolução da margem de lucro
-        if dcol and vcol:
-            df_copy = df.copy()
-            if 'Mês' not in df_copy.columns:
-                df_copy[dcol] = pd.to_datetime(df_copy[dcol])
-                df_copy['Mês'] = df_copy[dcol].dt.to_period('M').astype(str)
-            
-            if 'lucro_bruto' in df_copy.columns:
-                # Cálculo real se temos dados de lucro
-                lucro_mensal = df_copy.groupby('Mês').agg(
-                    Receita_Total=(vcol, 'sum'),
-                    Lucro_Total=('lucro_bruto', 'sum')
-                ).reset_index()
-                lucro_mensal['Margem_Lucro'] = (lucro_mensal['Lucro_Total'] / lucro_mensal['Receita_Total'] * 100).round(2)
-            else:
-                # Margens simuladas para dados de exemplo
-                lucro_mensal = df_copy.groupby('Mês')[vcol].sum().reset_index()
-                np.random.seed(123)
-                lucro_mensal['Margem_Lucro'] = np.random.uniform(30, 45, len(lucro_mensal))
-            
-            fig_margem = px.area(
-                lucro_mensal, x='Mês', y='Margem_Lucro',
-                title="📊 Evolução da Margem de Lucro (%)",
-                labels={"Margem_Lucro": "Margem de Lucro (%)", "Mês": "Mês"},
-                color_discrete_sequence=["#8b5cf6"]
-            )
-            fig_margem.update_traces(line=dict(width=3))
-            fig_margem = style_fig(fig_margem)
-            st.plotly_chart(fig_margem, use_container_width=True)
-
-def page_tendencias(tx):
+def page_tendencias_enhanced(tx):
     """
-    Página de análise de tendências - entenda o comportamento dos usuários.
-    Mostra padrões de uso, lojas preferidas, horários de pico, etc.
+    Versão melhorada da página de tendências com análise interativa.
     """
     top_header()
-    hero("📈 Análise de Tendências", "Comportamento do consumidor e padrões de uso de cupons")
+    hero("📈 Análise de Tendências Interativa", "Comportamento do consumidor com filtros avançados")
 
-    st.markdown("""
-    <div style="background-color: #f0f2f6; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #e0e0e0;">
-        <p style="color: #333; font-size: 16px;">
-        Explore os padrões por detrás dos números. Esta página permite-lhe analisar quando os seus clientes 
-        usam cupons (por hora, dia da semana) e quais as lojas e tipos de cupom que geram maior 
-        envolvimento e receita.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("---")
-
-    # Carrega dados
-    df, get = normcols(tx)
+    # Sistema avançado de filtros
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🎛️ Controles de Análise")
     
-    if df.empty:
-        st.info("Aguardando dados... Gerando dados de exemplo realistas para demonstração.")
-        df = generate_example_data(num_rows=2500)
-        df, get = normcols(df)
-
-    # Encontra colunas importantes
-    dcol = get("data", "data_captura")
-    vcol = get("valor_cupom", "valor_compra", "valor")
-    scol = get("nome_estabelecimento", "nome_loja", "loja")
-    tcol = get("tipo_cupom", "tipo")
-    cat_col = get("categoria_estabelecimento", "categoria_loja")
-
-    # Verifica se temos dados mínimos
-    if not dcol or not vcol or not scol or not tcol:
-        st.warning("Dados insuficientes para a análise de tendências. Colunas-chave (data, valor, loja, tipo) estão faltando.")
-        st.info(f"Colunas encontradas: data='{dcol}', valor='{vcol}', loja='{scol}', tipo='{tcol}'")
-        return
-
-    try:
+    # Filtro de tempo dinâmico
+    timeframe = st.sidebar.selectbox(
+        "Janela de Tempo",
+        ["Últimos 7 dias", "Últimos 30 dias", "Últimos 90 dias", "Todo o período"],
+        key="trend_timeframe"
+    )
+    
+    # Segmentação por características
+    segmentation = st.sidebar.multiselect(
+        "Segmentar por",
+        ["Loja", "Tipo de Cupom", "Dia da Semana", "Período do Dia"],
+        default=["Loja"],
+        key="trend_segmentation"
+    )
+    
+    if not tx.empty:
         # Prepara dados para análise
-        df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
-        df = df.dropna(subset=[dcol, vcol, scol, tcol]) 
+        tx_copy = tx.copy()
+        date_col = next((col for col in tx_copy.columns if 'data' in col.lower()), None)
         
-        # Cria colunas derivadas para análise
-        df['Mês'] = df[dcol].dt.to_period('M').astype(str)
-        df['Dia_Semana_Num'] = df[dcol].dt.weekday 
-        df['Dia_Semana'] = df[dcol].dt.day_name()
-        df['Hora'] = df[dcol].dt.hour
-        
-        # Traduz dias da semana para português
-        dias_portugues = {
-            'Monday': 'Segunda', 'Tuesday': 'Terça', 'Wednesday': 'Quarta',   
-            'Thursday': 'Quinta', 'Friday': 'Sexta', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
-        }
-        df['Dia_Semana'] = df['Dia_Semana'].map(dias_portugues)
-        
-    except Exception as e:
-        st.error(f"Erro ao processar os dados: {e}")
-        return
-
-    # Abas para diferentes tipos de análise
-    tab1, tab2, tab3 = st.tabs(["📊 Tendências Temporais", "🏪 Comportamento por Loja", "🎯 Padrões de Consumo"])
-
-    with tab1:
-        st.subheader("Tendências Temporais de Uso")
-        
-        # Agrupa dados por mês
-        uso_mensal = df.groupby('Mês').agg(
-            Receita=(vcol, 'sum'),
-            Cupons=(vcol, 'count')
-        ).reset_index()
-        
-        # Gráfico de receita vs volume
-        fig_mensal = go.Figure()
-        fig_mensal.add_trace(go.Bar(
-            x=uso_mensal['Mês'], y=uso_mensal['Receita'], name='Receita (R$)',
-            marker_color=PRIMARY, yaxis='y1'
-        ))
-        fig_mensal.add_trace(go.Scatter(
-            x=uso_mensal['Mês'], y=uso_mensal['Cupons'], name='Volume (Cupons)',
-            mode='lines+markers', line=dict(color='#f59e0b', width=3), yaxis='y2'
-        ))
-        
-        fig_mensal.update_layout(
-            title="Evolução Mensal: Receita (Barras) e Volume (Linha)",
-            xaxis_title="Mês",
-            yaxis=dict(title='Receita (R$)'),
-            yaxis2=dict(title='Volume de Cupons', overlaying='y', side='right'),
-            legend=dict(orientation="h", yanchor="bottom", y=-0.4)
-        )
-        st.plotly_chart(style_fig(fig_mensal, y_fmt=",.2f"), use_container_width=True)
-
-        # Gráficos de dia da semana e hora
-        col1, col2 = st.columns(2)
-        with col1:
-            uso_diario = df.groupby(['Dia_Semana_Num', 'Dia_Semana']).size().reset_index(name='Cupons').sort_values('Dia_Semana_Num')
-            fig_diario = px.bar(
-                uso_diario, x='Dia_Semana', y='Cupons',
-                title="Volume de Cupons por Dia da Semana",
-                labels={'Dia_Semana': 'Dia da Semana', 'Cupons': 'Total de Cupons'},
-                color_discrete_sequence=["#3b82f6"]
-            )
-            fig_diario = style_fig(fig_diario)
-            st.plotly_chart(fig_diario, use_container_width=True)
-        
-        with col2:
-            uso_hora = df.groupby('Hora').size().reset_index(name='Cupons')
-            fig_hora = px.bar(
-                uso_hora, x='Hora', y='Cupons',
-                title="Volume de Cupons por Hora do Dia",
-                labels={'Hora': 'Hora (0-23)', 'Cupons': 'Total de Cupons'},
-                color_discrete_sequence=["#10b981"]
-            )
-            fig_hora = style_fig(fig_hora)
-            st.plotly_chart(fig_hora, use_container_width=True)
-
-    with tab2:
-        st.subheader("Comportamento por Estabelecimento")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Top 10 lojas por receita
-            receita_lojas = df.groupby(scol)[vcol].sum().nlargest(10).sort_values(ascending=True)
-            fig_lojas_receita = px.bar(
-                receita_lojas, y=receita_lojas.index, x=receita_lojas.values,
-                title="Top 10 Lojas por Receita Total",
-                labels={'y': 'Loja', 'x': 'Receita (R$)'},
-                orientation='h', text_auto=',.2s',
-                color_discrete_sequence=[PRIMARY]
-            )
-            fig_lojas_receita = style_fig(fig_lojas_receita, x_fmt=",.2f")
-            st.plotly_chart(fig_lojas_receita, use_container_width=True)
-        
-        with col2:
-            # Top 10 lojas por volume
-            volume_lojas = df[scol].value_counts().nlargest(10).sort_values(ascending=True)
-            fig_lojas_volume = px.bar(
-                volume_lojas, y=volume_lojas.index, x=volume_lojas.values,
-                title="Top 10 Lojas por Volume de Cupons",
-                labels={'y': 'Loja', 'x': 'Quantidade de Cupons'},
-                orientation='h', text_auto=True,
-                color_discrete_sequence=["#f59e0b"]
-            )
-            fig_lojas_volume = style_fig(fig_lojas_volume)
-            st.plotly_chart(fig_lojas_volume, use_container_width=True)
-
-        col1, col2 = st.columns(2)
-        with col1:
-            # Ticket médio por loja
-            ticket_lojas = df.groupby(scol)[vcol].mean().nlargest(10).sort_values(ascending=True)
-            fig_ticket = px.bar(
-                ticket_lojas, y=ticket_lojas.index, x=ticket_lojas.values,
-                title="Ticket Médio por Loja (Top 10)",
-                labels={'y': 'Loja', 'x': 'Ticket Médio (R$)'},
-                orientation='h', text_auto=',.2f',
-                color_discrete_sequence=['#00CC96']
-            )
-            fig_ticket = style_fig(fig_ticket, x_fmt=",.2f")
-            st.plotly_chart(fig_ticket, use_container_width=True)
-        
-        with col2:
-            # Distribuição por categoria (se disponível)
-            if cat_col in df.columns:
-                receita_categoria = df.groupby(cat_col)[vcol].sum()
-                fig_cat_pie = px.pie(
-                    receita_categoria, values=receita_categoria.values, names=receita_categoria.index,
-                    title="Distribuição da Receita por Categoria de Loja",
-                    color_discrete_sequence=px.colors.qualitative.Set3,
-                    hole=0.3  # Donut chart
-                )
-                fig_cat_pie.update_traces(textposition='inside', textinfo='percent+label')
-                fig_cat_pie = style_fig(fig_cat_pie)
-                st.plotly_chart(fig_cat_pie, use_container_width=True)
-            else:
-                st.info("Coluna 'categoria_estabelecimento' não encontrada. Pulando gráfico de categorias.")
-
-    with tab3:
-        st.subheader("Padrões de Consumo e Eficiência")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Volume por tipo de cupom
-            tipos_cupom_vol = df[tcol].value_counts()
-            fig_tipos_vol = px.pie(
-                tipos_cupom_vol, values=tipos_cupom_vol.values, names=tipos_cupom_vol.index,
-                title="Volume por Tipo de Cupom (Contagem)",
-                color_discrete_sequence=px.colors.qualitative.Pastel
-            )
-            fig_tipos_vol = style_fig(fig_tipos_vol)
-            st.plotly_chart(fig_tipos_vol, use_container_width=True)
-        
-        with col2:
-            # Receita por tipo de cupom
-            tipos_cupom_rec = df.groupby(tcol)[vcol].sum()
-            fig_tipos_rec = px.pie(
-                tipos_cupom_rec, values=tipos_cupom_rec.values, names=tipos_cupom_rec.index,
-                title="Receita Gerada por Tipo de Cupom (R$)", 
-                hole=0.3,
-                color_discrete_sequence=px.colors.qualitative.Pastel
-            )
-            fig_tipos_rec = style_fig(fig_tipos_rec)
-            st.plotly_chart(fig_tipos_rec, use_container_width=True)
+        if date_col:
+            tx_copy[date_col] = pd.to_datetime(tx_copy[date_col])
             
-        
-        # Box plot de distribuição de valores
-        df_sample = df.sample(n=min(2000, len(df)))  # Amostra para performance
-        top_10_lojas = df[scol].value_counts().nlargest(10).index
-        df_sample_top10 = df_sample[df_sample[scol].isin(top_10_lojas)]
-
-        fig_dist = px.box(
-            df_sample_top10, 
-            x=scol,
-            y=vcol,
-            color=tcol,
-            title="Distribuição do Valor da Compra por Loja (Top 10) e Tipo de Cupom",
-            labels={vcol: "Valor da Compra (R$)", scol: "Loja", tcol: "Tipo de Cupom"}
-        )
-        
-        fig_dist = style_fig(fig_dist, y_fmt=",.2f")
-        st.plotly_chart(fig_dist, use_container_width=True)
+            # Aplica filtro de tempo
+            if timeframe == "Últimos 7 dias":
+                cutoff_date = tx_copy[date_col].max() - pd.Timedelta(days=7)
+                tx_copy = tx_copy[tx_copy[date_col] >= cutoff_date]
+            elif timeframe == "Últimos 30 dias":
+                cutoff_date = tx_copy[date_col].max() - pd.Timedelta(days=30)
+                tx_copy = tx_copy[tx_copy[date_col] >= cutoff_date]
+            elif timeframe == "Últimos 90 dias":
+                cutoff_date = tx_copy[date_col].max() - pd.Timedelta(days=90)
+                tx_copy = tx_copy[tx_copy[date_col] >= cutoff_date]
+            
+            # Análise de tendências com múltiplas visualizações
+            tab1, tab2, tab3 = st.tabs([
+                "📊 Tendências Temporais Interativas", 
+                "🔍 Análise de Comportamento", 
+                "📈 Projeções e Insights"
+            ])
+            
+            with tab1:
+                st.subheader("Tendências Temporais com Comparação")
+                
+                col1, col2 = st.columns([2, 1])
+                
+                with col2:
+                    compare_with = st.selectbox(
+                        "Comparar com",
+                        ["Período anterior", "Média histórica", "Meta"],
+                        key="trend_comparison"
+                    )
+                    
+                    metric = st.selectbox(
+                        "Métrica principal",
+                        ["Volume de transações", "Receita", "Ticket médio", "Novos usuários"],
+                        key="trend_metric"
+                    )
+                
+                # Gráfico de tendência com linha de comparação
+                if date_col:
+                    tx_copy['Data'] = tx_copy[date_col].dt.date
+                    daily_data = tx_copy.groupby('Data').agg({
+                        'valor_compra': ['sum', 'mean', 'count']
+                    }).round(2)
+                    
+                    daily_data.columns = ['Receita', 'Ticket Médio', 'Transações']
+                    daily_data = daily_data.reset_index()
+                    
+                    # Cria gráfico interativo
+                    fig_trend = go.Figure()
+                    
+                    if metric == "Volume de transações":
+                        y_data = daily_data['Transações']
+                        y_title = "Número de Transações"
+                    elif metric == "Receita":
+                        y_data = daily_data['Receita']
+                        y_title = "Receita (R$)"
+                    else:  # Ticket médio
+                        y_data = daily_data['Ticket Médio']
+                        y_title = "Ticket Médio (R$)"
+                    
+                    # Linha principal
+                    fig_trend.add_trace(go.Scatter(
+                        x=daily_data['Data'],
+                        y=y_data,
+                        mode='lines+markers',
+                        name='Atual',
+                        line=dict(width=3, color=PRIMARY),
+                        marker=dict(size=6),
+                        hovertemplate="<b>%{x}</b><br>" + y_title + ": %{y:,.2f}<extra></extra>"
+                    ))
+                    
+                    # Linha de comparação
+                    if compare_with == "Período anterior":
+                        # Simula dados do período anterior (em uma aplicação real, viria do banco)
+                        comparison_data = y_data * 0.85  # Exemplo
+                        fig_trend.add_trace(go.Scatter(
+                            x=daily_data['Data'],
+                            y=comparison_data,
+                            mode='lines',
+                            name='Período Anterior',
+                            line=dict(width=2, color='gray', dash='dash'),
+                            hovertemplate="<b>%{x}</b><br>Período Anterior: %{y:,.2f}<extra></extra>"
+                        ))
+                    elif compare_with == "Média histórica":
+                        avg_line = [y_data.mean()] * len(y_data)
+                        fig_trend.add_trace(go.Scatter(
+                            x=daily_data['Data'],
+                            y=avg_line,
+                            mode='lines',
+                            name='Média Histórica',
+                            line=dict(width=2, color='red', dash='dot'),
+                            hovertemplate="Média: %{y:,.2f}<extra></extra>"
+                        ))
+                    
+                    fig_trend.update_layout(
+                        title=f"Evolução de {metric} - {timeframe}",
+                        xaxis_title="Data",
+                        yaxis_title=y_title,
+                        hovermode="x unified"
+                    )
+                    
+                    st.plotly_chart(
+                        style_fig_interactive(fig_trend), 
+                        use_container_width=True
+                    )
+            
+            with tab2:
+                st.subheader("Análise de Comportamento Detalhada")
+                
+                # Heatmap de correlação interativo
+                st.subheader("🔗 Matriz de Correlação Interativa")
+                
+                # Seleciona colunas numéricas para correlação
+                numeric_cols = tx_copy.select_dtypes(include=[np.number]).columns.tolist()
+                
+                if len(numeric_cols) > 1:
+                    correlation_matrix = tx_copy[numeric_cols].corr()
+                    
+                    fig_corr = px.imshow(
+                        correlation_matrix,
+                        title="Correlação entre Métricas",
+                        color_continuous_scale="RdBu_r",
+                        aspect="auto",
+                        zmin=-1,
+                        zmax=1
+                    )
+                    
+                    # Adiciona valores nas células
+                    for i in range(len(correlation_matrix)):
+                        for j in range(len(correlation_matrix)):
+                            fig_corr.add_annotation(
+                                x=i,
+                                y=j,
+                                text=f"{correlation_matrix.iloc[i, j]:.2f}",
+                                showarrow=False,
+                                font=dict(color="white" if abs(correlation_matrix.iloc[i, j]) > 0.5 else "black")
+                            )
+                    
+                    st.plotly_chart(
+                        style_fig_interactive(fig_corr),
+                        use_container_width=True
+                    )
+                
+                # Análise de segmentação
+                if segmentation:
+                    st.subheader("📈 Análise por Segmentação")
+                    
+                    for segment in segmentation:
+                        if segment == "Loja" and 'nome_loja' in tx_copy.columns:
+                            segment_data = tx_copy.groupby('nome_loja').agg({
+                                'valor_compra': ['sum', 'mean', 'count']
+                            }).round(2)
+                            
+                            segment_data.columns = ['Receita Total', 'Ticket Médio', 'Transações']
+                            segment_data = segment_data.nlargest(10, 'Receita Total')
+                            
+                            fig_segment = create_interactive_bar_chart(
+                                segment_data.reset_index(),
+                                x_col='nome_loja',
+                                y_col='Receita Total',
+                                title=f"Top 10 Lojas por Receita",
+                                hover_data=['Ticket Médio', 'Transações']
+                            )
+                            
+                            st.plotly_chart(fig_segment, use_container_width=True)
 
 def page_financeiro(tx):
     """
@@ -1654,7 +1923,7 @@ def page_financeiro(tx):
             hovermode="x unified",
             margin=dict(t=80, b=140, l=80, r=80)
         )
-        st.plotly_chart(style_fig(fig_fluxo, y_fmt=",.2f"), use_container_width=True)
+        st.plotly_chart(style_fig_interactive(fig_fluxo, y_fmt=",.2f"), use_container_width=True)
 
         # KPIs financeiros
         col1, col2, col3, col4 = st.columns(4)
@@ -1735,7 +2004,7 @@ def page_financeiro(tx):
                     ],
                     title="Composição da DRE - Último Mês"
                 )
-                fig_dre = style_fig(fig_dre)
+                fig_dre = style_fig_interactive(fig_dre)
                 st.plotly_chart(fig_dre, use_container_width=True)
 
         # Evolução das margens
@@ -1749,7 +2018,7 @@ def page_financeiro(tx):
             yaxis_title="Margem (%)",
             margin=dict(t=80, b=140, l=80, r=80)
         )
-        st.plotly_chart(style_fig(fig_margens), use_container_width=True)
+        st.plotly_chart(style_fig_interactive(fig_margens), use_container_width=True)
 
     with tab3:
         st.subheader("Análise de Rentabilidade e Retorno")
@@ -1767,7 +2036,7 @@ def page_financeiro(tx):
             yaxis_title="Retorno (%)",
             margin=dict(t=80, b=140, l=80, r=80)
         )
-        st.plotly_chart(style_fig(fig_roic), use_container_width=True)
+        st.plotly_chart(style_fig_interactive(fig_roic), use_container_width=True)
 
         # KPIs de rentabilidade
         col1, col2, col3, col4 = st.columns(4)
@@ -1791,7 +2060,7 @@ def page_financeiro(tx):
             yaxis_title="Valor (R$)",
             margin=dict(t=80, b=140, l=80, r=80)
         )
-        st.plotly_chart(style_fig(fig_equilibrio, y_fmt=",.2f"), use_container_width=True)
+        st.plotly_chart(style_fig_interactive(fig_equilibrio, y_fmt=",.2f"), use_container_width=True)
 
         # Tabela detalhada de rentabilidade
         st.subheader("Indicadores de Rentabilidade Detalhados")
@@ -1889,7 +2158,7 @@ def page_financeiro(tx):
             yaxis_title="Valor (R$)",
             margin=dict(t=80, b=140, l=80, r=80)
         )
-        st.plotly_chart(style_fig(fig_balanco, y_fmt=",.2f"), use_container_width=True)
+        st.plotly_chart(style_fig_interactive(fig_balanco, y_fmt=",.2f"), use_container_width=True)
 
         # Indicadores de estrutura
         fig_estrutura = go.Figure()
@@ -1902,7 +2171,7 @@ def page_financeiro(tx):
             yaxis2=dict(overlaying="y", side="right", title="Liquidez Corrente"),
             margin=dict(t=80, b=140, l=80, r=80)
         )
-        st.plotly_chart(style_fig(fig_estrutura), use_container_width=True)
+        st.plotly_chart(style_fig_interactive(fig_estrutura), use_container_width=True)
 
 def page_eco():
     """
@@ -2081,7 +2350,7 @@ def page_eco():
                 yaxis_title="SELIC (%)",
                 margin=dict(t=80, b=140, l=80, r=80)
             )
-            st.plotly_chart(style_fig(fig_selic_y), use_container_width=True)
+            st.plotly_chart(style_fig_interactive(fig_selic_y), use_container_width=True)
 
         if "IPCA" in eco_anual.columns and eco_anual["IPCA"].notna().any():
             fig_ipca_y = go.Figure()
@@ -2092,7 +2361,7 @@ def page_eco():
                 yaxis_title="IPCA (%)",
                 margin=dict(t=80, b=140, l=80, r=80)
             )
-            st.plotly_chart(style_fig(fig_ipca_y), use_container_width=True)
+            st.plotly_chart(style_fig_interactive(fig_ipca_y), use_container_width=True)
 
         if "Inadimplencia" in eco_anual.columns and eco_anual["Inadimplencia"].notna().any():
             fig_inad_y = go.Figure()
@@ -2103,7 +2372,7 @@ def page_eco():
                 yaxis_title="Inadimplência (%)",
                 margin=dict(t=80, b=140, l=80, r=80)
             )
-            st.plotly_chart(style_fig(fig_inad_y), use_container_width=True)
+            st.plotly_chart(style_fig_interactive(fig_inad_y), use_container_width=True)
 
     with tab2:
         st.subheader("Evolução Mensal — SELIC, IPCA e Inadimplência")
@@ -2111,17 +2380,17 @@ def page_eco():
         if "Selic" in eco_mensal.columns and eco_mensal["Selic"].notna().any():
             fig = px.line(eco_mensal, x="Data", y="Selic", title="Evolução SELIC (%) — Mensal")
             fig.update_layout(margin=dict(t=80, b=140, l=80, r=80))
-            st.plotly_chart(style_fig(fig), use_container_width=True)
+            st.plotly_chart(style_fig_interactive(fig), use_container_width=True)
 
         if "IPCA" in eco_mensal.columns and eco_mensal["IPCA"].notna().any():
             fig = px.line(eco_mensal, x="Data", y="IPCA", title="Evolução IPCA (%) — Mensal")
             fig.update_layout(margin=dict(t=80, b=140, l=80, r=80))
-            st.plotly_chart(style_fig(fig), use_container_width=True)
+            st.plotly_chart(style_fig_interactive(fig), use_container_width=True)
 
         if "Inadimplencia" in eco_mensal.columns and eco_mensal["Inadimplencia"].notna().any():
             fig = px.area(eco_mensal, x="Data", y="Inadimplencia", title="Evolução da Inadimplência (%) — Mensal")
             fig.update_layout(margin=dict(t=80, b=140, l=80, r=80))
-            st.plotly_chart(style_fig(fig), use_container_width=True)
+            st.plotly_chart(style_fig_interactive(fig), use_container_width=True)
 
 def page_simulacaologin():
     """
@@ -2408,7 +2677,7 @@ def page_simulacaologin():
             showlegend=True
         )
         
-        fig_progresso = style_fig(fig_progresso) 
+        fig_progresso = style_fig_interactive(fig_progresso) 
         st.plotly_chart(fig_progresso, use_container_width=True)
         
         # Métricas de diversificação
@@ -2690,6 +2959,8 @@ if "user_email" not in st.session_state:
     st.session_state.user_email = None  # Email of logged in user
 if "page" not in st.session_state: 
     st.session_state.page = "home"  # Current page being displayed
+if "drill_level" not in st.session_state:
+    st.session_state.drill_level = 0  # Nível atual do drill-down
 
 # ---------------- Roteamento Principal ----------------
 def main():
@@ -2715,9 +2986,9 @@ def main():
         if page == "home": 
             page_home(tx, stores)
         elif page == "kpis": 
-            page_kpis(tx)
+            page_kpis_enhanced(tx)  # Usa versão melhorada
         elif page == "tendencias":
-            page_tendencias(tx)
+            page_tendencias_enhanced(tx)  # Usa versão melhorada
         elif page == "fin": 
             page_financeiro(tx)
         elif page == "eco": 
