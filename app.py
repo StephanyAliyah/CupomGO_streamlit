@@ -1,3 +1,6 @@
+# === CONFIGURAÇÃO DA PÁGINA DEVE SER O PRIMEIRO COMANDO ===
+import streamlit as st
+
 # Configuração da página que aparece na aba do navegador - DEVE SER O PRIMEIRO COMANDO
 st.set_page_config(
     page_title="CupomGO - Painel Econômico Interativo", 
