@@ -21,6 +21,172 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent
 DATA = (BASE / "data").resolve()
 
+# === SISTEMA DE FILTROS GLOBAL ===
+class SistemaFiltros:
+    """
+    Sistema centralizado de filtros para todos os gráficos do dashboard
+    """
+    
+    def __init__(self):
+        self.filtros_aplicados = {}
+        self.drill_down_stack = []  # Pilha para navegação hierárquica
+        self.widget_counter = 0  # Contador para gerar chaves únicas
+        
+    def _get_unique_key(self, prefix):
+        """Gera uma chave única para widgets do Streamlit"""
+        self.widget_counter += 1
+        return f"{prefix}_{self.widget_counter}_{id(self)}"
+        
+    def criar_filtros_sidebar(self, df):
+        """
+        Cria todos os controles de filtro na sidebar
+        """
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🎛️ Filtros Globais")
+        
+        # Filtro por período com slider de datas
+        if 'data_captura' in df.columns:
+            datas_validas = pd.to_datetime(df['data_captura'], errors='coerce').dropna()
+            if not datas_validas.empty:
+                min_date = datas_validas.min().date()
+                max_date = datas_validas.max().date()
+                
+                periodo = st.sidebar.date_input(
+                    "📅 Período",
+                    value=(min_date, max_date),
+                    min_value=min_date,
+                    max_value=max_date,
+                    key=self._get_unique_key("filtro_periodo")
+                )
+                
+                if len(periodo) == 2:
+                    self.filtros_aplicados['data_inicio'] = periodo[0]
+                    self.filtros_aplicados['data_fim'] = periodo[1]
+        
+        # Filtro por região (dropdown)
+        if 'regiao' in df.columns:
+            regioes = ['Todos'] + sorted(df['regiao'].dropna().unique().tolist())
+            regiao_selecionada = st.sidebar.selectbox(
+                "🌎 Região",
+                regioes,
+                key=self._get_unique_key("filtro_regiao")
+            )
+            if regiao_selecionada != 'Todos':
+                self.filtros_aplicados['regiao'] = regiao_selecionada
+        
+        # Filtro por ano (botões)
+        if 'data_captura' in df.columns:
+            df_copy = df.copy()
+            df_copy['data_captura'] = pd.to_datetime(df_copy['data_captura'], errors='coerce')
+            df_copy['ano'] = df_copy['data_captura'].dt.year
+            anos_disponiveis = sorted(df_copy['ano'].dropna().unique().astype(int).tolist())
+            
+            if anos_disponiveis:
+                st.sidebar.markdown("**📊 Ano:**")
+                col1, col2 = st.sidebar.columns(2)
+                with col1:
+                    if st.button("2023", use_container_width=True, key=self._get_unique_key("btn_2023")):
+                        self.filtros_aplicados['ano'] = 2023
+                with col2:
+                    if st.button("2024", use_container_width=True, key=self._get_unique_key("btn_2024")):
+                        self.filtros_aplicados['ano'] = 2024
+                
+                # Mostra ano atual selecionado
+                ano_atual = self.filtros_aplicados.get('ano', 'Todos')
+                st.sidebar.info(f"Ano selecionado: **{ano_atual}**")
+        
+        # Filtro por tipo de cupom
+        if 'tipo_cupom' in df.columns:
+            tipos = ['Todos'] + sorted(df['tipo_cupom'].dropna().unique().tolist())
+            tipo_selecionado = st.sidebar.multiselect(
+                "🎯 Tipo de Cupom",
+                tipos,
+                default=['Todos'],
+                key=self._get_unique_key("filtro_tipo")
+            )
+            if 'Todos' not in tipo_selecionado and tipo_selecionado:
+                self.filtros_aplicados['tipo_cupom'] = tipo_selecionado
+        
+        # Filtro por loja
+        if 'nome_loja' in df.columns:
+            lojas = ['Todas'] + sorted(df['nome_loja'].dropna().unique().tolist())
+            loja_selecionada = st.sidebar.selectbox(
+                "🏪 Loja",
+                lojas,
+                key=self._get_unique_key("filtro_loja")
+            )
+            if loja_selecionada != 'Todas':
+                self.filtros_aplicados['nome_loja'] = loja_selecionada
+        
+        # Botão para limpar todos os filtros
+        if st.sidebar.button("🧹 Limpar Filtros", use_container_width=True, key=self._get_unique_key("btn_limpar")):
+            self.filtros_aplicados = {}
+            self.drill_down_stack = []
+            st.rerun()
+        
+        # Mostra filtros ativos
+        if self.filtros_aplicados:
+            st.sidebar.markdown("---")
+            st.sidebar.markdown("**✅ Filtros Ativos:**")
+            for filtro, valor in self.filtros_aplicados.items():
+                st.sidebar.write(f"• {filtro}: {valor}")
+    
+    def aplicar_filtros(self, df):
+        """
+        Aplica todos os filtros ao dataframe
+        """
+        df_filtrado = df.copy()
+        
+        # Filtro de data
+        if 'data_inicio' in self.filtros_aplicados and 'data_fim' in self.filtros_aplicados:
+            if 'data_captura' in df_filtrado.columns:
+                df_filtrado['data_captura'] = pd.to_datetime(df_filtrado['data_captura'], errors='coerce')
+                mask = (df_filtrado['data_captura'].dt.date >= self.filtros_aplicados['data_inicio']) & \
+                       (df_filtrado['data_captura'].dt.date <= self.filtros_aplicados['data_fim'])
+                df_filtrado = df_filtrado[mask]
+        
+        # Filtro de região
+        if 'regiao' in self.filtros_aplicados and 'regiao' in df_filtrado.columns:
+            df_filtrado = df_filtrado[df_filtrado['regiao'] == self.filtros_aplicados['regiao']]
+        
+        # Filtro de ano
+        if 'ano' in self.filtros_aplicados and 'data_captura' in df_filtrado.columns:
+            df_filtrado['data_captura'] = pd.to_datetime(df_filtrado['data_captura'], errors='coerce')
+            df_filtrado = df_filtrado[df_filtrado['data_captura'].dt.year == self.filtros_aplicados['ano']]
+        
+        # Filtro de tipo de cupom
+        if 'tipo_cupom' in self.filtros_aplicados and 'tipo_cupom' in df_filtrado.columns:
+            df_filtrado = df_filtrado[df_filtrado['tipo_cupom'].isin(self.filtros_aplicados['tipo_cupom'])]
+        
+        # Filtro de loja
+        if 'nome_loja' in self.filtros_aplicados and 'nome_loja' in df_filtrado.columns:
+            df_filtrado = df_filtrado[df_filtrado['nome_loja'] == self.filtros_aplicados['nome_loja']]
+        
+        return df_filtrado
+    
+    def adicionar_drill_down(self, nivel, valor):
+        """
+        Adiciona um nível à pilha de drill-down
+        """
+        self.drill_down_stack.append((nivel, valor))
+    
+    def remover_drill_down(self):
+        """
+        Remove o último nível da pilha de drill-down
+        """
+        if self.drill_down_stack:
+            return self.drill_down_stack.pop()
+        return None
+    
+    def get_nivel_atual(self):
+        """
+        Retorna o nível atual de drill-down
+        """
+        return self.drill_down_stack[-1] if self.drill_down_stack else None
+
+# Cria instância global do sistema de filtros
+sistema_filtros = SistemaFiltros()
+
 # === Diagnóstico: lista o que o servidor realmente tem em /data ===
 @st.cache_data(show_spinner=False)
 def _list_data_files():
@@ -217,7 +383,7 @@ CONQUISTAS_PATH = get_data_path("conquistas.csv")
 
 # ======== Interatividade global para TODOS os gráficos ========
 
-def add_time_widgets(df, dcol):
+def add_time_widgets(df, dcol, key_suffix=""):
     """
     Widget de intervalo de datas + agregação (mês/semana/dia).
     Retorna df recortado e a 'freq' escolhida.
@@ -229,53 +395,29 @@ def add_time_widgets(df, dcol):
 
     with st.expander("⏱️ Filtros de tempo", expanded=False):
         c1, c2 = st.columns(2)
-        start = c1.date_input("De", value=min_d.date() if pd.notna(min_d) else datetime.date.today())
-        end   = c2.date_input("Até", value=max_d.date() if pd.notna(max_d) else datetime.date.today())
-        freq = st.radio("Agregação", ["Mês", "Semana", "Dia"], horizontal=True, index=0)
+        start = c1.date_input(
+            "De", 
+            value=min_d.date() if pd.notna(min_d) else datetime.date.today(),
+            key=f"start_date_{key_suffix}"
+        )
+        end = c2.date_input(
+            "Até", 
+            value=max_d.date() if pd.notna(max_d) else datetime.date.today(),
+            key=f"end_date_{key_suffix}"
+        )
+        freq = st.radio(
+            "Agregação", 
+            ["Mês", "Semana", "Dia"], 
+            horizontal=True, 
+            index=0,
+            key=f"freq_radio_{key_suffix}"
+        )
+    
     if start and end:
         mask = (df[dcol] >= pd.to_datetime(start)) & (df[dcol] <= pd.to_datetime(end) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1))
         df = df.loc[mask]
 
     return df, {"Mês":"M", "Semana":"W-MON", "Dia":"D"}[freq]
-
-def ui_global_filters(df, get):
-    """
-    Filtros em sidebar que viram 'cross-filter' para todos os gráficos da página.
-    Aplica loja, tipo, faixa de valores e busca de texto.
-    """
-    df = df.copy()
-
-    # descobre colunas usuais
-    scol = get("nome_loja","loja","merchant","estabelecimento")
-    tcol = get("tipo_cupom","tipo","categoria")
-    vcol = get("valor_compra","valor","amount","preco")
-    txtcol = get("cupom","codigo","id_cupom","cupom_id")
-
-    with st.sidebar.expander("🎛️ Filtros (página atual)", expanded=False):
-        if scol and scol in df.columns:
-            lojas = sorted(df[scol].dropna().astype(str).unique().tolist())[:3000]
-            pick_lojas = st.multiselect("Lojas", lojas, default=[])
-            if pick_lojas:
-                df = df[df[scol].astype(str).isin(pick_lojas)]
-
-        if tcol and tcol in df.columns:
-            tipos = sorted(df[tcol].dropna().astype(str).unique().tolist())[:3000]
-            pick_tipos = st.multiselect("Tipos de cupom", tipos, default=[])
-            if pick_tipos:
-                df = df[df[tcol].astype(str).isin(pick_tipos)]
-
-        if vcol and vcol in df.columns:
-            vmin, vmax = float(df[vcol].min()), float(df[vcol].max())
-            smin, smax = st.slider("Faixa de valores", min_value=round(vmin,2), max_value=round(vmax,2),
-                                   value=(round(vmin,2), round(vmax,2)))
-            df = df[(df[vcol] >= smin) & (df[vcol] <= smax)]
-
-        if txtcol and txtcol in df.columns:
-            q = st.text_input("Buscar por código de cupom (contém)")
-            if q:
-                df = df[df[txtcol].astype(str).str.contains(q, case=False, na=False)]
-
-    return df
 
 def time_axes_enhance(fig):
     """
@@ -850,6 +992,13 @@ def sidebar_nav():
     # Linha divisória
     st.sidebar.markdown("---")
     
+    # === ADICIONAR FILTROS GLOBAIS AQUI ===
+    # Carrega dados para os filtros
+    tx = transacoes if not transacoes.empty else pd.DataFrame()
+    if not tx.empty:
+        sistema_filtros.criar_filtros_sidebar(tx)
+        st.sidebar.markdown("---")
+    
     # Botões de navegação
     active = st.session_state.get("page", "home")
     for label, slug in NAV_ITEMS:
@@ -996,46 +1145,38 @@ def page_home(tx, stores):
     # Se não há dados reais, cria dados de exemplo para demonstração
     if df.empty:
         st.info("Nenhum dado encontrado. A carregar dados de exemplo.")
-        dates = pd.date_range(start='2024-01-01', end='2024-12-31', freq='D')
-        example_data = []
-        for i, date in enumerate(dates):
-            example_data.append({
-                'data_captura': date,
-                'valor_compra': np.random.uniform(50, 500),
-                'nome_loja': np.random.choice(['Loja A', 'Loja B', 'Loja C', 'Loja D']),
-                'tipo_cupom': np.random.choice(['Desconto', 'Cashback', 'Fidelidade'])
-            })
-        df = pd.DataFrame(example_data)
-        get = lambda *names: names[0] if names else None
+        df = generate_example_data(num_rows=2500)
+        df, get = normcols(df)
 
+    # === APLICA FILTROS GLOBAIS ===
+    df_filtrado = sistema_filtros.aplicar_filtros(df)
+    
     # Encontra as colunas de data e valor
     dcol = get("data","data_captura")
     vcol = get("valor_compra","valor")
 
-    # Métricas principais em cards bonitos
+    # Métricas principais em cards bonitos (usar df_filtrado)
     c1, c2, c3, c4 = st.columns(4)
     with c1: 
-        kpi_card("Total de Cupons", f"{len(df):,}".replace(",", "."))
+        kpi_card("Total de Cupons", f"{len(df_filtrado):,}".replace(",", "."))
     with c2: 
-        kpi_card("Conversões", f"{len(df):,}".replace(",", "."))
+        kpi_card("Conversões", f"{len(df_filtrado):,}".replace(",", "."))
     with c3:
-        avg = df[vcol].mean() if (vcol and (vcol in df.columns)) else 0
+        avg = df_filtrado[vcol].mean() if (vcol and (vcol in df_filtrado.columns)) else 0
         kpi_card("Ticket Médio", f"R$ {avg:,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
     with c4:
-        total_receita = df[vcol].sum() if (vcol and (vcol in df.columns)) else 0
+        total_receita = df_filtrado[vcol].sum() if (vcol and (vcol in df_filtrado.columns)) else 0
         kpi_card("Receita Total", f"R$ {total_receita:,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
 
-    # ----- filtros cruzados (sidebar) + tempo -----
-    df = ui_global_filters(df, get)
-    dcol = get("data","data_captura")
-    vcol = get("valor_compra","valor")
+    # Usar dados filtrados para os gráficos
+    df = df_filtrado.copy()
 
     if not dcol or not vcol or dcol not in df.columns or vcol not in df.columns:
         st.warning("Dados insuficientes para gráficos.")
         return
 
-    # widgets de tempo + agregação
-    df, freq = add_time_widgets(df, dcol)
+    # CORREÇÃO: Adicionar key_suffix único
+    df, freq = add_time_widgets(df, dcol, key_suffix="home")
 
     # agrega por periodicidade escolhida, mantendo eixo X em datetime (suporta range slider!)
     df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
@@ -1196,19 +1337,23 @@ def page_kpis(tx):
         df = generate_example_data(num_rows=2500)
         df, get = normcols(df)
 
+    # === APLICA FILTROS GLOBAIS ===
+    df_filtrado = sistema_filtros.aplicar_filtros(df)
+    df = df_filtrado.copy()
+
     # Abas para diferentes perfis executivos
     tab1, tab2, tab3 = st.tabs(["📈 Performance CEO - Conversões e Taxas", "🔧 Performance CTO - Operações", "💰 Performance CFO - Financeiro"])
 
     with tab1:
         st.subheader("📈 Performance CEO - Conversões e Taxas")
 
-        df = ui_global_filters(df, get)
         dcol = get("data","data_captura")
         if not dcol: 
             st.warning("Coluna de data não encontrada.")
             return
 
-        df, freq = add_time_widgets(df, dcol)
+        # CORREÇÃO: Adicionar key_suffix único
+        df, freq = add_time_widgets(df, dcol, key_suffix="ceo")
         df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
         df["Periodo"] = df[dcol].dt.to_period(freq).dt.to_timestamp()
 
@@ -1245,13 +1390,13 @@ def page_kpis(tx):
     with tab2:
         st.subheader("🔧 Performance CTO - Operações")
 
-        df = ui_global_filters(df, get)
         dcol = get("data","data_captura")
         if not dcol: 
             st.warning("Coluna de data não encontrada.")
             return
 
-        df, freq = add_time_widgets(df, dcol)
+        # CORREÇÃO: Adicionar key_suffix único
+        df, freq = add_time_widgets(df, dcol, key_suffix="cto")
         df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
         df["Periodo"] = df[dcol].dt.to_period(freq).dt.to_timestamp()
 
@@ -1279,7 +1424,6 @@ def page_kpis(tx):
     with tab3:
         st.subheader("💰 Performance CFO - Receita e ROI")
 
-        df = ui_global_filters(df, get)
         dcol = get("data","data_captura"); vcol = get("valor_compra","valor"); scol = get("nome_loja","loja")
         if not (dcol and vcol and scol) or any(c not in df.columns for c in [dcol, vcol, scol]):
             st.warning("Dados insuficientes para CFO.")
@@ -1340,6 +1484,10 @@ def page_tendencias(tx):
         st.info("Aguardando dados... Gerando dados de exemplo realistas para demonstração.")
         df = generate_example_data(num_rows=2500)
         df, get = normcols(df)
+
+    # === APLICA FILTROS GLOBAIS ===
+    df_filtrado = sistema_filtros.aplicar_filtros(df)
+    df = df_filtrado.copy()
 
     # Encontra colunas importantes
     dcol = get("data", "data_captura")
@@ -1562,31 +1710,26 @@ def page_financeiro(tx):
 
     # Carrega dados
     df, get = normcols(tx)
+    
+    # Dados de exemplo se necessário
+    if df.empty:
+        st.info("Sem dados financeiros suficientes em assets/transacoes.xlsx. A carregar dados de exemplo.")
+        df = generate_example_data(num_rows=1000)
+        df, get = normcols(df)
+
+    # === APLICA FILTROS GLOBAIS ===
+    df_filtrado = sistema_filtros.aplicar_filtros(df)
+    df = df_filtrado.copy()
+
     dcol = get("data","data_captura")
     vcol = get("valor_compra","valor")
 
-    # Dados de exemplo se necessário
-    if df.empty or not dcol or not vcol or dcol not in df.columns or vcol not in df.columns:
-        st.info("Sem dados financeiros suficientes em assets/transacoes.xlsx. A carregar dados de exemplo.")
-        dates = pd.date_range(start='2024-01-01', end='2024-12-31', freq='M')
-        example_data = []
-        for i, date in enumerate(dates):
-            example_data.append({
-                'data_captura': date,
-                'valor_compra': np.random.uniform(10000, 50000)
-            })
-        df = pd.DataFrame(example_data)
-        dcol = 'data_captura'
-        vcol = 'valor_compra'
-
-    # ----- NOVO CÓDIGO INTERATIVO -----
-    df = ui_global_filters(df, get)
-    dcol = get("data","data_captura"); vcol = get("valor_compra","valor")
     if not (dcol and vcol) or any(c not in df.columns for c in [dcol, vcol]):
         st.info("Sem dados suficientes.")
         return
 
-    df, freq = add_time_widgets(df, dcol)
+    # CORREÇÃO: Adicionar key_suffix único
+    df, freq = add_time_widgets(df, dcol, key_suffix="fin")
     df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
     df["Periodo"] = df[dcol].dt.to_period(freq).dt.to_timestamp()
 
