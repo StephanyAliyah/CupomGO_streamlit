@@ -1,6 +1,3 @@
-# === CONFIGURAÇÃO DA PÁGINA DEVE SER O PRIMEIRO COMANDO ===
-import streamlit as st
-
 # Configuração da página que aparece na aba do navegador - DEVE SER O PRIMEIRO COMANDO
 st.set_page_config(
     page_title="CupomGO - Painel Econômico Interativo", 
@@ -170,6 +167,11 @@ df_lojas = lojas if not lojas.empty else pd.DataFrame()
 df_players = players if not players.empty else pd.DataFrame()
 df_pedestres = pedestres if not pedestres.empty else pd.DataFrame()
 df_economia = economia if not economia.empty else pd.DataFrame()
+
+# Antes de plotar, cheque se veio
+if not df_transacoes.empty:
+    # ... seus gráficos aqui
+    pass
 
 # Cor principal da nossa marca - usada em botões, títulos e gráficos
 PRIMARY = "#0C2D6B"
@@ -367,49 +369,47 @@ def safe_logo(width=150):
 
 def style_fig(fig, y_fmt=None, x_fmt=None):
     """
-    Aplica um visual consistente em todos os gráficos com interações melhoradas.
+    Aplica um visual consistente em todos os gráficos.
+    Pense nisso como o 'tema' dos nossos gráficos - deixa tudo com a mesma cara.
     """
     # Configura o layout geral do gráfico
     fig.update_layout(
-        font=dict(color="black", size=12),
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        hovermode="closest",  # Mais preciso para interações
+        font=dict(color="black", size=12),  # Fonte preta e legível
+        paper_bgcolor="white",     # Fundo branco ao redor do gráfico
+        plot_bgcolor="white",      # Fundo blanco dentro do gráfico
+        hovermode="x unified",     # Mostra dados de todas as linhas ao passar o mouse
         hoverlabel=dict(
-            bgcolor="white",
-            font_color="black",
+            bgcolor="white",       # Fundo branco nas dicas
+            font_color="black",    # Texto preto nas dicas
             font_size=12,
             bordercolor="lightgray",
             namelength=-1
         ),
         legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=-0.35,
-            xanchor="center",
+            orientation="h",       # Legenda na horizontal
+            yanchor="bottom",      # Ancora embaixo
+            y=-0.35,              # Posição abaixo do gráfico
+            xanchor="center",      # Centralizada
             x=0.5,
-            bgcolor="rgba(255,255,255,0.9)",
+            bgcolor="rgba(255,255,255,0.9)",  # Fundo semi-transparente
             bordercolor="lightgray",
             borderwidth=1,
             font=dict(size=11)
         ),
-        title_font=dict(color="black", size=16),
-        margin=dict(l=80, r=80, t=80, b=140),
-        # Melhorias para interação
-        clickmode='event+select',  # Permite cliques e seleções
-        dragmode='zoom',  # Permite zoom
-        showlegend=True
+        title_font=dict(color="black", size=16),  # Título em preto
+        margin=dict(l=80, r=80, t=80, b=140)  # Espaço ao redor do gráfico
     )
     
-    # Estiliza os eixos
+    # Estiliza o eixo X (horizontal)
     fig.update_xaxes(
         title_font=dict(color="black", size=12), 
         tickfont=dict(color="black", size=11), 
-        gridcolor="lightgray",
+        gridcolor="lightgray",     # Grades cinza claras
         zerolinecolor="lightgray", 
-        showgrid=True
+        showgrid=True              # Mostra as grades
     )
     
+    # Estiliza o eixo Y (vertical)
     fig.update_yaxes(
         title_font=dict(color="black", size=12), 
         tickfont=dict(color="black", size=11), 
@@ -418,7 +418,7 @@ def style_fig(fig, y_fmt=None, x_fmt=None):
         showgrid=True
     )
     
-    # Formata números se especificado
+    # Formata números se especificado (ex: 1000 vira 1.000)
     if y_fmt is not None: 
         fig.update_yaxes(tickformat=y_fmt)
     if x_fmt is not None: 
@@ -642,144 +642,6 @@ def normcols(df: pd.DataFrame):
         
     return df, get
 
-# ---------------- SISTEMA DE FILTROS GLOBAIS ----------------
-def criar_filtros_globais(df):
-    """
-    Cria filtros globais que afetam todos os gráficos do dashboard.
-    """
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🎛️ Filtros Globais")
-    
-    # Filtro por período
-    if 'data_captura' in df.columns:
-        df['data_captura'] = pd.to_datetime(df['data_captura'], errors='coerce')
-        datas_validas = df['data_captura'].dropna()
-        if not datas_validas.empty:
-            min_date = datas_validas.min().date()
-            max_date = datas_validas.max().date()
-            
-            periodo = st.sidebar.date_input(
-                "📅 Período",
-                value=(min_date, max_date),
-                min_value=min_date,
-                max_value=max_date,
-                key="global_period"
-            )
-            
-            if len(periodo) == 2:
-                mask = (df['data_captura'].dt.date >= periodo[0]) & (df['data_captura'].dt.date <= periodo[1])
-                df = df[mask]
-    
-    # Filtro por loja
-    if 'nome_loja' in df.columns:
-        lojas = ['Todas'] + sorted(df['nome_loja'].unique().tolist())
-        loja_selecionada = st.sidebar.selectbox(
-            "🏪 Filtrar por Loja",
-            lojas,
-            key="global_store"
-        )
-        if loja_selecionada != 'Todas':
-            df = df[df['nome_loja'] == loja_selecionada]
-    
-    # Filtro por tipo de cupom
-    if 'tipo_cupom' in df.columns:
-        tipos = ['Todos'] + sorted(df['tipo_cupom'].unique().tolist())
-        tipo_selecionado = st.sidebar.selectbox(
-            "🎯 Filtrar por Tipo",
-            tipos,
-            key="global_type"
-        )
-        if tipo_selecionado != 'Todos':
-            df = df[df['tipo_cupom'] == tipo_selecionado]
-    
-    # Filtro por valor mínimo
-    if 'valor_compra' in df.columns:
-        valor_min = st.sidebar.slider(
-            "💰 Valor Mínimo da Compra (R$)",
-            min_value=float(df['valor_compra'].min()),
-            max_value=float(df['valor_compra'].max()),
-            value=float(df['valor_compra'].min()),
-            key="global_min_value"
-        )
-        df = df[df['valor_compra'] >= valor_min]
-    
-    return df
-
-# ---------------- COMPONENTES DE INTERAÇÃO AVANÇADOS ----------------
-def criar_grafico_interativo(df, tipo, x_col, y_col, color_col=None, title="", 
-                           hover_data=None, selection_callback=None):
-    """
-    Cria gráficos com interações avançadas.
-    """
-    if df.empty:
-        return go.Figure()
-    
-    # Dados para tooltip
-    hover_data = hover_data or {}
-    
-    if tipo == 'bar':
-        fig = px.bar(df, x=x_col, y=y_col, color=color_col, title=title,
-                    hover_data=hover_data, text_auto=True)
-        
-        # Melhorar interatividade
-        fig.update_traces(
-            hovertemplate=f"<b>{x_col}:</b> %{{x}}<br><b>{y_col}:</b> %{{y}}<extra></extra>",
-            hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial"),
-            marker_line_width=0
-        )
-        
-    elif tipo == 'line':
-        fig = px.line(df, x=x_col, y=y_col, color=color_col, title=title,
-                     hover_data=hover_data, markers=True)
-        
-        fig.update_traces(
-            hovertemplate=f"<b>{x_col}:</b> %{{x}}<br><b>{y_col}:</b> %{{y:,.2f}}<extra></extra>",
-            line_width=3,
-            marker=dict(size=8)
-        )
-        
-    elif tipo == 'scatter':
-        fig = px.scatter(df, x=x_col, y=y_col, color=color_col, title=title,
-                        hover_data=hover_data, size_max=15)
-        
-        fig.update_traces(
-            hovertemplate=f"<b>{x_col}:</b> %{{x}}<br><b>{y_col}:</b> %{{y}}<extra></extra>",
-            marker=dict(size=10, opacity=0.7, line=dict(width=1, color='DarkSlateGrey'))
-        )
-    
-    # Aplicar estilo consistente
-    fig = style_fig(fig)
-    
-    # Adicionar funcionalidade de destaque
-    fig.update_traces(
-        selected=dict(marker=dict(opacity=1)),
-        unselected=dict(marker=dict(opacity=0.3))
-    )
-    
-    return fig
-
-def criar_mapa_calor_interativo(df, x_col, y_col, values_col, title=""):
-    """
-    Cria heatmap com interações avançadas.
-    """
-    if df.empty:
-        return go.Figure()
-    
-    pivot_table = df.pivot_table(values=values_col, index=y_col, columns=x_col, aggfunc='sum', fill_value=0)
-    
-    fig = go.Figure(data=go.Heatmap(
-        z=pivot_table.values,
-        x=pivot_table.columns,
-        y=pivot_table.index,
-        colorscale='Blues',
-        hoverongaps=False,
-        hovertemplate=f"<b>{x_col}:</b> %{{x}}<br><b>{y_col}:</b> %{{y}}<br><b>Total:</b> %{{z:,.2f}}<extra></extra>",
-        showscale=True
-    ))
-    
-    fig.update_layout(title=title)
-    return style_fig(fig)
-
 # ---------------- Componentes Visuais da Interface ----------------
 def top_header():
     """
@@ -1002,7 +864,107 @@ def signup_screen():
                 st.session_state.auth_mode = "login"
                 st.rerun()
 
-# ---------------- FUNÇÃO PARA DADOS DE EXEMPLO ----------------
+# ---------------- Páginas Principais do Sistema ----------------
+def page_home(tx, stores):
+    """
+    Página inicial - visão geral do sistema.
+    É a porta de entrada para todas as análises.
+    """
+    top_header()
+    hero("🏠 Página Inicial", "Visão geral das operações e métricas principais")
+
+    # Introdução amigável
+    st.markdown("""
+    <div style="background-color: #f0f2f6; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #e0e0e0;">
+        <h3 style="color: #0C2D6B; margin-top: 0;">Bem-vindo ao CupomGO!</h3>
+        <p style="color: #333; font-size: 16px;">
+        Esta é a sua central de inteligência para monitorar o desempenho das suas campanhas de cupons. 
+        Aqui na Página Inicial, você tem uma visão geral das métricas mais importantes.
+        </p>
+        <p style="color: #333; font-size: 16px;">
+        Utilize o <strong>menu </strong> para navegar pelas análises detalhadas, incluindo:
+        <ul>
+            <li style="color: #333;"><strong>Indicadores Executivos:</strong> Métricas de alto nível para CEO, CTO e CFO.</li>
+            <li style="color: #333;"><strong>Análise de Tendências:</strong> Padrões de consumo e comportamento por loja.</li>
+            <li style="color: #333;"><strong>Financeiro:</strong> Análise de DRE, ROI, ROIC e indicadores de rentabilidade.</li>
+            <li style="color: #333;"><strong>Painel Econômico:</strong> Contexto macroeconômico (SELIC, IPCA e Inadimplência).</li>
+            <li style="color: #333;"><strong>Uso de Cupons:</strong> Acompanhe seu progresso no nosso sistema de gamificação.</li>
+        </ul>
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("---") 
+
+    # Carrega e prepara os dados
+    df, get = normcols(tx)
+    
+    # Se não há dados reais, cria dados de exemplo para demonstração
+    if df.empty:
+        st.info("Nenhum dado encontrado. A carregar dados de exemplo.")
+        dates = pd.date_range(start='2024-01-01', end='2024-12-31', freq='D')
+        example_data = []
+        for i, date in enumerate(dates):
+            example_data.append({
+                'data_captura': date,
+                'valor_compra': np.random.uniform(50, 500),
+                'nome_loja': np.random.choice(['Loja A', 'Loja B', 'Loja C', 'Loja D']),
+                'tipo_cupom': np.random.choice(['Desconto', 'Cashback', 'Fidelidade'])
+            })
+        df = pd.DataFrame(example_data)
+        get = lambda *names: names[0] if names else None
+
+    # Encontra as colunas de data e valor
+    dcol = get("data","data_captura")
+    vcol = get("valor_compra","valor")
+
+    # Métricas principais em cards bonitos
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: 
+        kpi_card("Total de Cupons", f"{len(df):,}".replace(",", "."))
+    with c2: 
+        kpi_card("Conversões", f"{len(df):,}".replace(",", "."))
+    with c3:
+        avg = df[vcol].mean() if (vcol and (vcol in df.columns)) else 0
+        kpi_card("Ticket Médio", f"R$ {avg:,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
+    with c4:
+        total_receita = df[vcol].sum() if (vcol and (vcol in df.columns)) else 0
+        kpi_card("Receita Total", f"R$ {total_receita:,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
+
+    # Verifica se temos dados suficientes para gráficos
+    if not dcol or dcol not in df.columns or not vcol or vcol not in df.columns:
+        st.warning("Dados insuficientes para gerar gráficos.")
+        return
+
+    # Prepara dados mensais para o gráfico
+    df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
+    df["Mês"] = df[dcol].dt.to_period("M").astype(str)
+    resumo = df.groupby("Mês")[vcol].agg(["sum","mean","count"]).reset_index()
+    resumo.columns = ["Mês","Receita","Ticket Médio","Conversões"]
+
+    # Gráfico principal da página inicial
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=resumo["Mês"], y=resumo["Receita"], name="Receita",
+        marker_color=PRIMARY,
+        hovertemplate="Mês: %{x}<br>Receita: R$ %{y:,.2f}<extra></extra>"
+    ))
+    fig.add_trace(go.Scatter(
+        x=resumo["Mês"], y=resumo["Ticket Médio"], name="Ticket médio",
+        mode="lines+markers", yaxis="y2",
+        line=dict(color="darkgray", width=3),
+        hovertemplate="Mês: %{x}<br>Ticket: R$ %{y:,.2f}<extra></extra>"
+    ))
+    fig.update_layout(
+        title="Desempenho Mensal - Receita e Ticket Médio",
+        xaxis_title="Mês",
+        yaxis=dict(title="Receita (R$)"),
+        yaxis2=dict(overlaying="y", side="right", title="Ticket médio (R$)"),
+        margin=dict(t=80, b=140, l=80, r=80)
+    )
+    fig = style_fig(fig, y_fmt=",.2f")
+    st.plotly_chart(fig, use_container_width=True)
+
 def generate_example_data(num_rows=2500):
     """
     Cria dados de exemplo realistas quando não temos dados reais.
@@ -1076,803 +1038,1683 @@ def generate_example_data(num_rows=2500):
     
     return df.drop(columns=['valor_base', 'margem_bruta'])
 
-# ---------------- PÁGINAS ATUALIZADAS COM INTERAÇÕES ----------------
-def page_home(tx, stores):
+def page_kpis(tx):
     """
-    Página inicial - visão geral do sistema.
-    É a porta de entrada para todas as análises.
+    Página de Indicadores Executivos - métricas para tomada de decisão.
+    Focada em CEO, CTO e CFO com visões diferentes.
     """
     top_header()
-    hero("🏠 Página Inicial", "Visão geral das operações e métricas principais")
+    hero("📊 Painel Executivo", "Métricas estratégicas por perfil de liderança")
 
-    # Introdução amigável
+    # Explicação da página
     st.markdown("""
     <div style="background-color: #f0f2f6; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #e0e0e0;">
-        <h3 style="color: #0C2D6B; margin-top: 0;">Bem-vindo ao CupomGO!</h3>
         <p style="color: #333; font-size: 16px;">
-        Esta é a sua central de inteligência para monitorar o desempenho das suas campanhas de cupons. 
-        Aqui na Página Inicial, você tem uma visão geral das métricas mais importantes.
+        Esta página consolida os indicadores-chave de performance (KPIs) segmentados 
+        pelos principais pilares de gestão:
         </p>
-        <p style="color: #333; font-size: 16px;">
-        Utilize o <strong>menu </strong> para navegar pelas análises detalhadas, incluindo:
-        <ul>
-            <li style="color: #333;"><strong>Indicadores Executivos:</strong> Métricas de alto nível para CEO, CTO e CFO.</li>
-            <li style="color: #333;"><strong>Análise de Tendências:</strong> Padrões de consumo e comportamento por loja.</li>
-            <li style="color: #333;"><strong>Financeiro:</strong> Análise de DRE, ROI, ROIC e indicadores de rentabilidade.</li>
-            <li style="color: #333;"><strong>Painel Econômico:</strong> Contexto macroeconômico (SELIC, IPCA e Inadimplência).</li>
-            <li style="color: #333;"><strong>Uso de Cupons:</strong> Acompanhe seu progresso no nosso sistema de gamificação.</li>
+        <ul style="color: #333; font-size: 16px;">
+            <li><strong>CEO:</strong> Foco em crescimento, conversões e taxa de adesão.</li>
+            <li><strong>CTO:</strong> Foco em volume operacional, estabilidade e tráfego diário.</li>
+            <li><strong>CFO:</strong> Foco em receita, rentabilidade (ROI) e eficiência financeira.</li>
         </ul>
-        </p>
     </div>
     """, unsafe_allow_html=True)
-    
-    st.markdown("---") 
+    st.markdown("---")
 
-    # Carrega e prepara os dados
+    # Carrega dados
     df, get = normcols(tx)
     
-    # Se não há dados reais, cria dados de exemplo para demonstração
+    # Dados de exemplo se não houver dados reais
     if df.empty:
-        st.info("Nenhum dado encontrado. A carregar dados de exemplo.")
-        df = generate_example_data(1000)
-        get = lambda *names: names[0] if names else None
+        st.info("Aguardando dados... Gerando dados de exemplo mais realistas para demonstração.")
+        df = generate_example_data(num_rows=2500)
+        df, get = normcols(df)
 
-    # Aplicar filtros globais
-    df_filtrado = criar_filtros_globais(df.copy())
-    
-    # Encontra as colunas de data e valor
+    # Encontra colunas importantes
     dcol = get("data","data_captura")
     vcol = get("valor_compra","valor")
+    scol = get("nome_loja","loja","tipo_loja")
+    tcol = get("tipo_cupom","tipo")
 
-    # Métricas principais em cards bonitos
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: 
-        kpi_card("Total de Cupons", f"{len(df_filtrado):,}".replace(",", "."))
-    with c2: 
-        kpi_card("Conversões", f"{len(df_filtrado):,}".replace(",", "."))
-    with c3:
-        avg = df_filtrado[vcol].mean() if (vcol and (vcol in df_filtrado.columns)) else 0
-        kpi_card("Ticket Médio", f"R$ {avg:,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
-    with c4:
-        total_receita = df_filtrado[vcol].sum() if (vcol and (vcol in df_filtrado.columns)) else 0
-        kpi_card("Receita Total", f"R$ {total_receita:,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
-
-    # Verifica se temos dados suficientes para gráficos
-    if not dcol or dcol not in df_filtrado.columns or not vcol or vcol not in df_filtrado.columns:
-        st.warning("Dados insuficientes para gerar gráficos.")
-        return
-
-    # Prepara dados mensais para o gráfico
-    df_filtrado[dcol] = pd.to_datetime(df_filtrado[dcol], errors="coerce")
-    df_filtrado["Mês"] = df_filtrado[dcol].dt.to_period("M").astype(str)
-    resumo = df_filtrado.groupby("Mês")[vcol].agg(["sum","mean","count"]).reset_index()
-    resumo.columns = ["Mês","Receita","Ticket Médio","Conversões"]
-
-    # Gráfico principal da página inicial com interações
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=resumo["Mês"], y=resumo["Receita"], name="Receita",
-        marker_color=PRIMARY,
-        hovertemplate="Mês: %{x}<br>Receita: R$ %{y:,.2f}<extra></extra>",
-        opacity=0.8
-    ))
-    fig.add_trace(go.Scatter(
-        x=resumo["Mês"], y=resumo["Ticket Médio"], name="Ticket médio",
-        mode="lines+markers", yaxis="y2",
-        line=dict(color="darkgray", width=3),
-        marker=dict(size=8, color="darkgray"),
-        hovertemplate="Mês: %{x}<br>Ticket: R$ %{y:,.2f}<extra></extra>"
-    ))
-    fig.update_layout(
-        title="Desempenho Mensal - Receita e Ticket Médio",
-        xaxis_title="Mês",
-        yaxis=dict(title="Receita (R$)"),
-        yaxis2=dict(overlaying="y", side="right", title="Ticket médio (R$)"),
-        margin=dict(t=80, b=140, l=80, r=80),
-        hovermode="x unified"
-    )
-    fig = style_fig(fig, y_fmt=",.2f")
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Gráfico de distribuição por loja (top 10)
-    if 'nome_loja' in df_filtrado.columns:
-        st.subheader("🏪 Top Lojas por Receita")
-        
-        loja_receita = df_filtrado.groupby('nome_loja')[vcol].sum().nlargest(10).reset_index()
-        loja_receita.columns = ['Loja', 'Receita']
-        
-        fig_lojas = criar_grafico_interativo(
-            loja_receita, 'bar', 'Loja', 'Receita',
-            title="Top 10 Lojas por Receita",
-            hover_data={'Receita': ':,.2f'}
-        )
-        
-        st.plotly_chart(fig_lojas, use_container_width=True)
-
-def page_kpis_interativa(tx):
-    """
-    Página de KPIs com interações avançadas.
-    """
-    top_header()
-    hero("📊 Painel Executivo Interativo", "Métricas estratégicas com filtros e drill-down")
-
-    # Aplicar filtros globais
-    df_filtrado = criar_filtros_globais(tx.copy())
-    
-    # Se não há dados, usa dados de exemplo
-    if df_filtrado.empty:
-        st.info("Gerando dados de exemplo para demonstração...")
-        df_filtrado = generate_example_data(1000)
-    
-    # Abas para diferentes perfis
-    tab1, tab2, tab3 = st.tabs(["📈 CEO - Conversões", "🔧 CTO - Operações", "💰 CFO - Financeiro"])
+    # Abas para diferentes perfis executivos
+    tab1, tab2, tab3 = st.tabs(["📈 Performance CEO - Conversões e Taxas", "🔧 Performance CTO - Operações", "💰 Performance CFO - Financeiro"])
 
     with tab1:
         st.subheader("📈 Performance CEO - Conversões e Taxas")
         
-        # Gráfico interativo de conversões mensais
-        col1, col2 = st.columns([3, 1])
+        if not dcol:
+            st.warning("Coluna de data não encontrada.")
+            return
+            
+        # Prepara dados mensais
+        df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
+        bym = df[dcol].dt.to_period("M").astype(str)
+        conv = bym.value_counts().sort_index()
         
-        with col2:
-            st.markdown("**Configurações**")
-            mostrar_tendencia = st.checkbox("📈 Mostrar linha de tendência", True)
-            agrupamento = st.radio("Agrupar por:", ["Mês", "Semana", "Dia"], horizontal=True)
-        
-        with col1:
-            # Preparar dados para agrupamento
-            df_ceo = df_filtrado.copy()
-            df_ceo['data_captura'] = pd.to_datetime(df_ceo['data_captura'])
+        if len(conv) == 0:
+            st.info("Sem dados de conversões para exibir.")
+            return
             
-            if agrupamento == "Mês":
-                df_ceo['periodo'] = df_ceo['data_captura'].dt.to_period('M').astype(str)
-            elif agrupamento == "Semana":
-                df_ceo['periodo'] = df_ceo['data_captura'].dt.strftime('%Y-%U')
-            else:  # Dia
-                df_ceo['periodo'] = df_ceo['data_captura'].dt.date
-            
-            conversoes = df_ceo.groupby('periodo').size().reset_index(name='conversoes')
-            
-            fig_ceo = criar_grafico_interativo(
-                conversoes, 'line', 'periodo', 'conversoes',
-                title=f"Evolução de Conversões por {agrupamento}",
-                hover_data={'conversoes': ':,'}
-            )
-            
-            if mostrar_tendencia and len(conversoes) > 1:
-                # Adicionar linha de tendência
-                z = np.polyfit(range(len(conversoes)), conversoes['conversoes'], 1)
-                p = np.poly1d(z)
-                fig_ceo.add_trace(go.Scatter(
-                    x=conversoes['periodo'],
-                    y=p(range(len(conversoes))),
-                    mode='lines',
-                    name='Tendência',
-                    line=dict(dash='dash', color='red'),
-                    hovertemplate="Tendência: %{y:.1f} conversões<extra></extra>"
-                ))
-            
-            st.plotly_chart(fig_ceo, use_container_width=True)
+        # Calcula taxa de adesão (percentual do mês com maior volume)
+        taxa_adesao = (conv.values / conv.values.max() * 100) if len(conv) > 0 else np.array([])
 
-        # KPIs com drill-down
-        col1, col2, col3, col4 = st.columns(4)
+        # Gráfico para CEO
+        fig_ceo = go.Figure()
+        fig_ceo.add_trace(go.Bar(
+            x=conv.index, y=conv.values, name="Conversões",
+            marker_color=PRIMARY,
+            hovertemplate="Mês: %{x}<br>Conversões: %{y:,}<extra></extra>"
+        ))
         
+        if len(taxa_adesao) > 0:
+            fig_ceo.add_trace(go.Scatter(
+                x=conv.index, y=taxa_adesao, name="Taxa de Adesão (%)",
+                mode="lines+markers", yaxis="y2",
+                line=dict(color="orange", width=3),
+                hovertemplate="Mês: %{x}<br>Taxa: %{y:.1f}%<extra></extra>"
+            ))
+
+        fig_ceo.update_layout(
+            title="Conversões e Taxa de Adesão Mensal",
+            xaxis_title="Mês",
+            yaxis=dict(title="Conversões"),
+            yaxis2=dict(overlaying="y", side="right", title="Taxa de Adesão (%)") if len(taxa_adesao) > 0 else None,
+            margin=dict(t=80, b=140, l=80, r=80)
+        )
+        fig_ceo = style_fig(fig_ceo)
+        st.plotly_chart(fig_ceo, use_container_width=True)
+
+        # KPIs para CEO
+        col1, col2, col3 = st.columns(3)
         with col1:
-            total_conversoes = len(df_filtrado)
-            st.metric("Total Conversões", f"{total_conversoes:,}")
-            
+            kpi_card("Total Conversões", f"{len(df):,}".replace(",", "."))
         with col2:
-            # Simular taxa de crescimento
-            crescimento = np.random.uniform(5, 15)
-            st.metric("Crescimento Mensal", f"+{crescimento:.1f}%")
-            
+            kpi_card("Meses Ativos", f"{len(conv)}")
         with col3:
-            if st.button("🔍 Detalhes Conversões", use_container_width=True):
-                st.session_state.drill_down = "conversoes_detalhes"
-                
-        with col4:
-            if st.button("📊 Exportar Dados", use_container_width=True):
-                # Simular exportação
-                st.success("Dados exportados para CSV!")
-
-        # Gráfico de pizza interativo por tipo de cupom
-        if 'tipo_cupom' in df_filtrado.columns:
-            st.subheader("📊 Distribuição por Tipo de Cupom")
-            
-            tipo_dist = df_filtrado['tipo_cupom'].value_counts().reset_index()
-            tipo_dist.columns = ['Tipo', 'Quantidade']
-            
-            fig_pizza = px.pie(tipo_dist, values='Quantidade', names='Tipo', 
-                              title="Distribuição por Tipo de Cupom",
-                              hole=0.3)
-            
-            fig_pizza.update_traces(
-                hovertemplate="<b>%{label}</b><br>Quantidade: %{value}<br>Percentual: %{percent}<extra></extra>",
-                textposition='inside',
-                textinfo='percent+label'
-            )
-            
-            fig_pizza = style_fig(fig_pizza)
-            st.plotly_chart(fig_pizza, use_container_width=True)
+            max_conv = conv.max() if len(conv) > 0 else 0
+            kpi_card("Pico Mensal", f"{max_conv:,}".replace(",", "."))
 
     with tab2:
         st.subheader("🔧 Performance CTO - Volume Operacional")
         
-        # Heatmap de atividade por hora e dia da semana
-        st.subheader("🕐 Heatmap de Atividade")
-        
-        df_cto = df_filtrado.copy()
-        df_cto['data_captura'] = pd.to_datetime(df_cto['data_captura'])
-        df_cto['hora'] = df_cto['data_captura'].dt.hour
-        df_cto['dia_semana'] = df_cto['data_captura'].dt.day_name()
-        
-        # Ordenar dias da semana
-        dias_ordem = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-        dias_traduzidos = {
-            'Monday': 'Segunda', 'Tuesday': 'Terça', 'Wednesday': 'Quarta',
-            'Thursday': 'Quinta', 'Friday': 'Sexta', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
-        }
-        
-        df_cto['dia_semana'] = df_cto['dia_semana'].map(dias_traduzidos)
-        dias_ordem_trad = [dias_traduzidos[d] for d in dias_ordem]
-        
-        heatmap_data = df_cto.groupby(['dia_semana', 'hora']).size().reset_index(name='transacoes')
-        heatmap_data['dia_semana'] = pd.Categorical(heatmap_data['dia_semana'], categories=dias_ordem_trad, ordered=True)
-        heatmap_data = heatmap_data.sort_values(['dia_semana', 'hora'])
-        
-        fig_heatmap = criar_mapa_calor_interativo(
-            heatmap_data, 'hora', 'dia_semana', 'transacoes',
-            title="Heatmap de Transações por Hora e Dia da Semana"
-        )
-        
-        st.plotly_chart(fig_heatmap, use_container_width=True)
+        if not dcol:
+            st.warning("Coluna de data não encontrada.")
+            return
+            
+        # Volume diário de transações
+        volume_diario = df[dcol].dt.date
+        volume_contagem = volume_diario.value_counts().sort_index()
 
-        # Gráfico de performance por loja com seleção interativa
-        st.subheader("🏪 Performance por Loja")
-        
-        if 'nome_loja' in df_cto.columns and 'valor_compra' in df_cto.columns:
-            loja_performance = df_cto.groupby('nome_loja').agg({
-                'valor_compra': ['count', 'sum', 'mean']
-            }).round(2)
+        if len(volume_contagem) == 0:
+            st.info("Sem dados de volume operacional para exibir.")
+            return
+
+        # Gráfico de volume diário
+        fig_cto = px.bar(
+            x=volume_contagem.index.astype(str), y=volume_contagem.values,
+            title="Volume Diário de Transações",
+            labels={"x":"Data", "y":"Transações"},
+            color_discrete_sequence=[PRIMARY]
+        )
+        fig_cto.update_traces(hovertemplate="Data: %{x}<br>Transações: %{y:,}<extra></extra>")
+        fig_cto = style_fig(fig_cto, y_fmt=",.0f")
+        st.plotly_chart(fig_cto, use_container_width=True)
+
+        # KPIs para CTO
+        col1, col2, col3 = st.columns(3)
+        with col1: 
+            kpi_card("Transações/Dia", f"{volume_contagem.mean():.0f}")
+        with col2: 
+            kpi_card("Pico Diário", f"{volume_contagem.max():,}".replace(",", "."))
+        with col3: 
+            kpi_card("Dias Ativos", f"{len(volume_contagem)}")
+
+        # Gráfico por dia da semana
+        if dcol in df.columns:
+            df_copy = df.copy()
+            df_copy['Dia_Semana'] = df_copy[dcol].dt.day_name()
+            dias_ordem = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            dias_portugues = {
+                'Monday': 'Segunda', 'Tuesday': 'Terça', 'Wednesday': 'Quarta', 
+                'Thursday': 'Quinta', 'Friday': 'Sexta', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
+            }
             
-            loja_performance.columns = ['Transações', 'Receita_Total', 'Ticket_Médio']
-            loja_performance = loja_performance.reset_index()
+            volume_semanal = df_copy['Dia_Semana'].value_counts().reindex(dias_ordem).fillna(0)
+            volume_semanal.index = volume_semanal.index.map(dias_portugues)
             
-            # Gráfico de barras interativo
-            fig_lojas = criar_grafico_interativo(
-                loja_performance.nlargest(10, 'Receita_Total'),
-                'bar', 'nome_loja', 'Receita_Total',
-                title="Top 10 Lojas por Receita",
-                hover_data={'Ticket_Médio': ':.2f', 'Transações': ':,'}
+            fig_semanal = px.bar(
+                x=volume_semanal.index, y=volume_semanal.values,
+                title="Distribuição de Transações por Dia da Semana",
+                labels={"x":"Dia da Semana", "y":"Transações"},
+                color_discrete_sequence=["#3b82f6"]
             )
-            
-            st.plotly_chart(fig_lojas, use_container_width=True)
+            fig_semanal = style_fig(fig_semanal)
+            st.plotly_chart(fig_semanal, use_container_width=True)
 
     with tab3:
         st.subheader("💰 Performance CFO - Receita e ROI")
         
-        # Gráfico de evolução financeira com múltiplas métricas
-        st.subheader("📈 Evolução Financeira")
-        
-        df_cfo = df_filtrado.copy()
-        df_cfo['data_captura'] = pd.to_datetime(df_cfo['data_captura'])
-        df_cfo['mes'] = df_cfo['data_captura'].dt.to_period('M').astype(str)
-        
-        evolucao = df_cfo.groupby('mes').agg({
-            'valor_compra': ['sum', 'mean', 'count']
-        }).round(2)
-        
-        evolucao.columns = ['Receita', 'Ticket_Médio', 'Transações']
-        evolucao = evolucao.reset_index()
-        
-        # Gráfico com múltiplos eixos Y
-        fig_evolucao = go.Figure()
-        
-        # Receita (barra)
-        fig_evolucao.add_trace(go.Bar(
-            name="Receita",
-            x=evolucao['mes'],
-            y=evolucao['Receita'],
-            yaxis='y',
-            marker_color=PRIMARY,
-            hovertemplate="<b>Mês:</b> %{x}<br><b>Receita:</b> R$ %{y:,.2f}<extra></extra>"
-        ))
-        
-        # Ticket Médio (linha)
-        fig_evolucao.add_trace(go.Scatter(
-            name="Ticket Médio",
-            x=evolucao['mes'],
-            y=evolucao['Ticket_Médio'],
-            yaxis='y2',
-            mode='lines+markers',
-            line=dict(color='orange', width=3),
-            hovertemplate="<b>Mês:</b> %{x}<br><b>Ticket Médio:</b> R$ %{y:.2f}<extra></extra>"
-        ))
-        
-        fig_evolucao.update_layout(
-            title="Evolução da Receita e Ticket Médio",
-            xaxis=dict(title="Mês"),
-            yaxis=dict(title="Receita (R$)", side="left"),
-            yaxis2=dict(title="Ticket Médio (R$)", side="right", overlaying="y"),
-            legend=dict(x=0.02, y=0.98)
-        )
-        
-        fig_evolucao = style_fig(fig_evolucao)
-        st.plotly_chart(fig_evolucao, use_container_width=True)
+        if df.empty:
+            st.warning("Não há dados disponíveis para análise financeira.")
+            return
 
-        # Análise de ROI interativa
-        st.subheader("📊 Análise de ROI")
+        # Gráfico de evolução da receita
+        if dcol and vcol:
+            df_copy = df.copy()
+            df_copy[dcol] = pd.to_datetime(df_copy[dcol]) 
+            df_copy['Mês'] = df_copy[dcol].dt.to_period('M').astype(str)
+            
+            receita_mensal = df_copy.groupby('Mês')[vcol].sum().reset_index()
+            
+            fig_receita = px.line(
+                receita_mensal, x='Mês', y=vcol,
+                title="📈 Evolução da Receita Mensal",
+                labels={vcol: "Receita (R$)", "Mês": "Mês"},
+                color_discrete_sequence=[PRIMARY]
+            )
+            fig_receita.update_traces(mode='lines+markers', line=dict(width=3))
+            fig_receita = style_fig(fig_receita, y_fmt=",.2f")
+            st.plotly_chart(fig_receita, use_container_width=True)
+
+        # Gráfico de ROI por loja
+        if scol and vcol and scol in df.columns:
+            
+            if 'investimento_mkt' in df.columns and 'lucro_bruto' in df.columns:
+                # Cálculo realista de ROI se temos os dados
+                agg = df.groupby(scol).agg(
+                    Receita=('valor_compra', 'sum'), 
+                    Transacoes=('valor_compra', 'count'), 
+                    Investimento=('investimento_mkt', 'sum'),
+                    Lucro=('lucro_bruto', 'sum')
+                ).reset_index()
+                agg['ROI'] = ((agg['Lucro'] - agg['Investimento']) / agg['Investimento'] * 100).round(2)
+            else:
+                # Cálculo simplificado para dados de exemplo
+                agg = df.groupby(scol)[vcol].agg(['sum', 'count']).reset_index()
+                agg.columns = [scol, 'Receita', 'Transacoes']
+                agg['Investimento'] = agg['Receita'] * 0.35 
+                agg['ROI'] = ((agg['Receita'] - agg['Investimento']) / agg['Investimento'] * 100).round(2)
+            
+            agg = agg.nlargest(10, 'Receita')
+
+            fig_cfo = go.Figure()
+            fig_cfo.add_trace(go.Bar(
+                x=agg[scol].astype(str), y=agg['Receita'], name="Receita",
+                marker_color=PRIMARY,
+                hovertemplate="Loja: %{x}<br>Receita: R$ %{y:,.2f}<extra></extra>"
+            ))
+            fig_cfo.add_trace(go.Scatter(
+                x=agg[scol].astype(str), y=agg['ROI'], name="ROI",
+                yaxis="y2", mode="lines+markers",
+                line=dict(color="red", width=3),
+                hovertemplate="Loja: %{x}<br>ROI: %{y:.2f}%<extra></extra>"
+            ))
+            fig_cfo.update_layout(
+                title="🏪 Receita e ROI por Loja (Top 10)",
+                xaxis_title="Lojas",
+                yaxis=dict(title="Receita (R$)"),
+                yaxis2=dict(overlaying="y", side="right", title="ROI (%)"),
+                margin=dict(t=80, b=140, l=80, r=80)
+            )
+            fig_cfo = style_fig(fig_cfo, y_fmt=",.2f")
+            st.plotly_chart(fig_cfo, use_container_width=True)
+
+            # KPIs financeiros
+            col1, col2, col3 = st.columns(3)
+            with col1: 
+                kpi_card("Receita Total", f"R$ {agg['Receita'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
+            with col2: 
+                kpi_card("ROI Médio", f"{agg['ROI'].mean():.1f}%")
+            with col3: 
+                kpi_card("Melhor ROI", f"{agg['ROI'].max():.1f}%")
+
+        # Gráfico de pizza por tipo de cupom
+        if tcol and vcol and tcol in df.columns:
+            tipo_agg = df.groupby(tcol)[vcol].agg(['sum', 'count']).reset_index()
+            tipo_agg.columns = [tcol, 'Receita', 'Transacoes']
+            
+            fig_tipo = px.pie(
+                tipo_agg, values='Receita', names=tcol,
+                title="🥧 Distribuição da Receita por Tipo de Cupom",
+                color_discrete_sequence=px.colors.qualitative.Set3
+            )
+            fig_tipo = style_fig(fig_tipo)
+            st.plotly_chart(fig_tipo, use_container_width=True)
+
+        # Evolução do ticket médio
+        if dcol and vcol:
+            df_copy = df.copy()
+            if 'Mês' not in df_copy.columns:
+                    df_copy[dcol] = pd.to_datetime(df_copy[dcol])
+                    df_copy['Mês'] = df_copy[dcol].dt.to_period('M').astype(str)
+                    
+            ticket_mensal = df_copy.groupby('Mês')[vcol].mean().reset_index()
+            
+            fig_ticket = px.line(
+                ticket_mensal, x='Mês', y=vcol,
+                title="💰 Evolução do Ticket Médio Mensal",
+                labels={vcol: "Ticket Médio (R$)", "Mês": "Mês"},
+                color_discrete_sequence=["#10b981"]
+            )
+            fig_ticket.update_traces(mode='lines+markers', line=dict(width=3))
+            fig_ticket = style_fig(fig_ticket, y_fmt=",.2f")
+            st.plotly_chart(fig_ticket, use_container_width=True)
+
+        # Evolução da margem de lucro
+        if dcol and vcol:
+            df_copy = df.copy()
+            if 'Mês' not in df_copy.columns:
+                df_copy[dcol] = pd.to_datetime(df_copy[dcol])
+                df_copy['Mês'] = df_copy[dcol].dt.to_period('M').astype(str)
+            
+            if 'lucro_bruto' in df_copy.columns:
+                # Cálculo real se temos dados de lucro
+                lucro_mensal = df_copy.groupby('Mês').agg(
+                    Receita_Total=(vcol, 'sum'),
+                    Lucro_Total=('lucro_bruto', 'sum')
+                ).reset_index()
+                lucro_mensal['Margem_Lucro'] = (lucro_mensal['Lucro_Total'] / lucro_mensal['Receita_Total'] * 100).round(2)
+            else:
+                # Margens simuladas para dados de exemplo
+                lucro_mensal = df_copy.groupby('Mês')[vcol].sum().reset_index()
+                np.random.seed(123)
+                lucro_mensal['Margem_Lucro'] = np.random.uniform(30, 45, len(lucro_mensal))
+            
+            fig_margem = px.area(
+                lucro_mensal, x='Mês', y='Margem_Lucro',
+                title="📊 Evolução da Margem de Lucro (%)",
+                labels={"Margem_Lucro": "Margem de Lucro (%)", "Mês": "Mês"},
+                color_discrete_sequence=["#8b5cf6"]
+            )
+            fig_margem.update_traces(line=dict(width=3))
+            fig_margem = style_fig(fig_margem)
+            st.plotly_chart(fig_margem, use_container_width=True)
+
+def page_tendencias(tx):
+    """
+    Página de análise de tendências - entenda o comportamento dos usuários.
+    Mostra padrões de uso, lojas preferidas, horários de pico, etc.
+    """
+    top_header()
+    hero("📈 Análise de Tendências", "Comportamento do consumidor e padrões de uso de cupons")
+
+    st.markdown("""
+    <div style="background-color: #f0f2f6; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #e0e0e0;">
+        <p style="color: #333; font-size: 16px;">
+        Explore os padrões por detrás dos números. Esta página permite-lhe analisar quando os seus clientes 
+        usam cupons (por hora, dia da semana) e quais as lojas e tipos de cupom que geram maior 
+        envolvimento e receita.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("---")
+
+    # Carrega dados
+    df, get = normcols(tx)
+    
+    if df.empty:
+        st.info("Aguardando dados... Gerando dados de exemplo realistas para demonstração.")
+        df = generate_example_data(num_rows=2500)
+        df, get = normcols(df)
+
+    # Encontra colunas importantes
+    dcol = get("data", "data_captura")
+    vcol = get("valor_cupom", "valor_compra", "valor")
+    scol = get("nome_estabelecimento", "nome_loja", "loja")
+    tcol = get("tipo_cupom", "tipo")
+    cat_col = get("categoria_estabelecimento", "categoria_loja")
+
+    # Verifica se temos dados mínimos
+    if not dcol or not vcol or not scol or not tcol:
+        st.warning("Dados insuficientes para a análise de tendências. Colunas-chave (data, valor, loja, tipo) estão faltando.")
+        st.info(f"Colunas encontradas: data='{dcol}', valor='{vcol}', loja='{scol}', tipo='{tcol}'")
+        return
+
+    try:
+        # Prepara dados para análise
+        df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
+        df = df.dropna(subset=[dcol, vcol, scol, tcol]) 
+        
+        # Cria colunas derivadas para análise
+        df['Mês'] = df[dcol].dt.to_period('M').astype(str)
+        df['Dia_Semana_Num'] = df[dcol].dt.weekday 
+        df['Dia_Semana'] = df[dcol].dt.day_name()
+        df['Hora'] = df[dcol].dt.hour
+        
+        # Traduz dias da semana para português
+        dias_portugues = {
+            'Monday': 'Segunda', 'Tuesday': 'Terça', 'Wednesday': 'Quarta',   
+            'Thursday': 'Quinta', 'Friday': 'Sexta', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
+        }
+        df['Dia_Semana'] = df['Dia_Semana'].map(dias_portugues)
+        
+    except Exception as e:
+        st.error(f"Erro ao processar os dados: {e}")
+        return
+
+    # Abas para diferentes tipos de análise
+    tab1, tab2, tab3 = st.tabs(["📊 Tendências Temporais", "🏪 Comportamento por Loja", "🎯 Padrões de Consumo"])
+
+    with tab1:
+        st.subheader("Tendências Temporais de Uso")
+        
+        # Agrupa dados por mês
+        uso_mensal = df.groupby('Mês').agg(
+            Receita=(vcol, 'sum'),
+            Cupons=(vcol, 'count')
+        ).reset_index()
+        
+        # Gráfico de receita vs volume
+        fig_mensal = go.Figure()
+        fig_mensal.add_trace(go.Bar(
+            x=uso_mensal['Mês'], y=uso_mensal['Receita'], name='Receita (R$)',
+            marker_color=PRIMARY, yaxis='y1'
+        ))
+        fig_mensal.add_trace(go.Scatter(
+            x=uso_mensal['Mês'], y=uso_mensal['Cupons'], name='Volume (Cupons)',
+            mode='lines+markers', line=dict(color='#f59e0b', width=3), yaxis='y2'
+        ))
+        
+        fig_mensal.update_layout(
+            title="Evolução Mensal: Receita (Barras) e Volume (Linha)",
+            xaxis_title="Mês",
+            yaxis=dict(title='Receita (R$)'),
+            yaxis2=dict(title='Volume de Cupons', overlaying='y', side='right'),
+            legend=dict(orientation="h", yanchor="bottom", y=-0.4)
+        )
+        st.plotly_chart(style_fig(fig_mensal, y_fmt=",.2f"), use_container_width=True)
+
+        # Gráficos de dia da semana e hora
+        col1, col2 = st.columns(2)
+        with col1:
+            uso_diario = df.groupby(['Dia_Semana_Num', 'Dia_Semana']).size().reset_index(name='Cupons').sort_values('Dia_Semana_Num')
+            fig_diario = px.bar(
+                uso_diario, x='Dia_Semana', y='Cupons',
+                title="Volume de Cupons por Dia da Semana",
+                labels={'Dia_Semana': 'Dia da Semana', 'Cupons': 'Total de Cupons'},
+                color_discrete_sequence=["#3b82f6"]
+            )
+            fig_diario = style_fig(fig_diario)
+            st.plotly_chart(fig_diario, use_container_width=True)
+        
+        with col2:
+            uso_hora = df.groupby('Hora').size().reset_index(name='Cupons')
+            fig_hora = px.bar(
+                uso_hora, x='Hora', y='Cupons',
+                title="Volume de Cupons por Hora do Dia",
+                labels={'Hora': 'Hora (0-23)', 'Cupons': 'Total de Cupons'},
+                color_discrete_sequence=["#10b981"]
+            )
+            fig_hora = style_fig(fig_hora)
+            st.plotly_chart(fig_hora, use_container_width=True)
+
+    with tab2:
+        st.subheader("Comportamento por Estabelecimento")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            investimento_medio = st.slider(
-                "💰 Investimento Médio por Transação (%)",
-                min_value=5, max_value=30, value=15
+            # Top 10 lojas por receita
+            receita_lojas = df.groupby(scol)[vcol].sum().nlargest(10).sort_values(ascending=True)
+            fig_lojas_receita = px.bar(
+                receita_lojas, y=receita_lojas.index, x=receita_lojas.values,
+                title="Top 10 Lojas por Receita Total",
+                labels={'y': 'Loja', 'x': 'Receita (R$)'},
+                orientation='h', text_auto=',.2s',
+                color_discrete_sequence=[PRIMARY]
             )
+            fig_lojas_receita = style_fig(fig_lojas_receita, x_fmt=",.2f")
+            st.plotly_chart(fig_lojas_receita, use_container_width=True)
         
         with col2:
-            margem_desejada = st.slider(
-                "🎯 Margem de Lucro Desejada (%)", 
-                min_value=10, max_value=40, value=25
+            # Top 10 lojas por volume
+            volume_lojas = df[scol].value_counts().nlargest(10).sort_values(ascending=True)
+            fig_lojas_volume = px.bar(
+                volume_lojas, y=volume_lojas.index, x=volume_lojas.values,
+                title="Top 10 Lojas por Volume de Cupons",
+                labels={'y': 'Loja', 'x': 'Quantidade de Cupons'},
+                orientation='h', text_auto=True,
+                color_discrete_sequence=["#f59e0b"]
             )
-        
-        # Calcular ROI simulado
-        if 'nome_loja' in df_cfo.columns:
-            roi_analysis = df_cfo.groupby('nome_loja').agg({
-                'valor_compra': ['sum', 'count']
-            }).round(2)
-            
-            roi_analysis.columns = ['Receita', 'Transações']
-            roi_analysis = roi_analysis.reset_index()
-            
-            roi_analysis['Investimento'] = roi_analysis['Receita'] * (investimento_medio / 100)
-            roi_analysis['Lucro'] = roi_analysis['Receita'] * (margem_desejada / 100)
-            roi_analysis['ROI'] = ((roi_analysis['Lucro'] - roi_analysis['Investimento']) / roi_analysis['Investimento'] * 100).round(2)
-            
-            # Gráfico de ROI
-            fig_roi = criar_grafico_interativo(
-                roi_analysis.nlargest(10, 'ROI'),
-                'bar', 'nome_loja', 'ROI',
-                title=f"ROI por Loja (Top 10) - Investimento: {investimento_medio}%",
-                hover_data={'Receita': ':.2f', 'Lucro': ':.2f', 'Investimento': ':.2f'}
-            )
-            
-            fig_roi.update_yaxes(ticksuffix="%")
-            st.plotly_chart(fig_roi, use_container_width=True)
+            fig_lojas_volume = style_fig(fig_lojas_volume)
+            st.plotly_chart(fig_lojas_volume, use_container_width=True)
 
-def page_tendencias_interativa(tx):
-    """
-    Página de tendências com análises interativas.
-    """
-    top_header()
-    hero("📈 Análise de Tendências Interativa", "Explore padrões e comportamentos com filtros avançados")
-
-    # Aplicar filtros
-    df_filtrado = criar_filtros_globais(tx.copy())
-    
-    if df_filtrado.empty:
-        df_filtrado = generate_example_data(1500)
-    
-    # Sidebar com filtros específicos de tendências
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🔍 Filtros de Tendências")
-    
-    # Filtro de análise temporal
-    analise_temporal = st.sidebar.radio(
-        "Análise Temporal:",
-        ["Horária", "Diária", "Semanal", "Mensal"],
-        horizontal=True
-    )
-    
-    # Filtro de segmentação
-    segmentacao = st.sidebar.multiselect(
-        "Segmentar por:",
-        ["Loja", "Tipo de Cupom", "Categoria"] if any(x in df_filtrado.columns for x in ['nome_loja', 'tipo_cupom', 'categoria_estabelecimento']) else ["Loja", "Tipo de Cupom"],
-        default=["Loja"]
-    )
-
-    # Abas de análise
-    tab1, tab2, tab3, tab4 = st.tabs(["📅 Sazonalidade", "🏪 Comportamento", "📊 Padrões", "🔮 Previsões"])
-
-    with tab1:
-        st.subheader("📅 Análise Sazonalidade")
-        
-        # Preparar dados temporais
-        df_temp = df_filtrado.copy()
-        df_temp['data_captura'] = pd.to_datetime(df_temp['data_captura'])
-        
-        if analise_temporal == "Horária":
-            df_temp['periodo'] = df_temp['data_captura'].dt.hour
-            periodo_label = "Hora"
-        elif analise_temporal == "Diária":
-            df_temp['periodo'] = df_temp['data_captura'].dt.day_name()
-            # Ordenar dias
-            dias_ordem = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-            dias_trad = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
-            df_temp['periodo'] = df_temp['periodo'].map(dict(zip(dias_ordem, dias_trad)))
-            df_temp['periodo'] = pd.Categorical(df_temp['periodo'], categories=dias_trad, ordered=True)
-            periodo_label = "Dia da Semana"
-        elif analise_temporal == "Semanal":
-            df_temp['periodo'] = df_temp['data_captura'].dt.strftime('%Y-%U')
-            periodo_label = "Semana"
-        else:  # Mensal
-            df_temp['periodo'] = df_temp['data_captura'].dt.to_period('M').astype(str)
-            periodo_label = "Mês"
-        
-        # Gráfico de tendência principal
-        tendencia_principal = df_temp.groupby('periodo').agg({
-            'valor_compra': ['sum', 'count', 'mean']
-        }).round(2)
-        
-        tendencia_principal.columns = ['Receita', 'Transações', 'Ticket_Médio']
-        tendencia_principal = tendencia_principal.reset_index()
-        
-        # Criar gráfico interativo
-        metrica_selecionada = st.selectbox(
-            "Selecione a métrica:",
-            ["Receita", "Transações", "Ticket_Médio"],
-            key="tendencia_metrica"
-        )
-        
-        fig_tendencia = criar_grafico_interativo(
-            tendencia_principal,
-            'line', 'periodo', metrica_selecionada,
-            title=f"Evolução {metrica_selecionada} - {analise_temporal}",
-            hover_data={metrica_selecionada: ':,.2f' if 'Receita' in metrica_selecionada or 'Ticket' in metrica_selecionada else ':,'}
-        )
-        
-        st.plotly_chart(fig_tendencia, use_container_width=True)
-        
-        # Análise comparativa por segmentação
-        if segmentacao and 'nome_loja' in segmentacao and 'nome_loja' in df_temp.columns:
-            st.subheader("🏪 Comparativo por Loja")
-            
-            lojas_top = df_temp['nome_loja'].value_counts().nlargest(5).index
-            df_top_lojas = df_temp[df_temp['nome_loja'].isin(lojas_top)]
-            
-            comparativo = df_top_lojas.groupby(['periodo', 'nome_loja']).agg({
-                'valor_compra': 'sum'
-            }).reset_index()
-            
-            fig_comparativo = criar_grafico_interativo(
-                comparativo,
-                'line', 'periodo', 'valor_compra', 'nome_loja',
-                title=f"Comparativo de Receita - Top 5 Lojas",
-                hover_data={'valor_compra': ':,.2f'}
+        col1, col2 = st.columns(2)
+        with col1:
+            # Ticket médio por loja
+            ticket_lojas = df.groupby(scol)[vcol].mean().nlargest(10).sort_values(ascending=True)
+            fig_ticket = px.bar(
+                ticket_lojas, y=ticket_lojas.index, x=ticket_lojas.values,
+                title="Ticket Médio por Loja (Top 10)",
+                labels={'y': 'Loja', 'x': 'Ticket Médio (R$)'},
+                orientation='h', text_auto=',.2f',
+                color_discrete_sequence=['#00CC96']
             )
-            
-            st.plotly_chart(fig_comparativo, use_container_width=True)
-
-    with tab2:
-        st.subheader("🏪 Comportamento do Consumidor")
+            fig_ticket = style_fig(fig_ticket, x_fmt=",.2f")
+            st.plotly_chart(fig_ticket, use_container_width=True)
         
-        # Mapa de calor de correlação
-        st.subheader("🔗 Análise de Correlação")
-        
-        # Selecionar colunas numéricas para correlação
-        colunas_numericas = df_filtrado.select_dtypes(include=[np.number]).columns.tolist()
-        
-        if len(colunas_numericas) > 1:
-            correlacao = df_filtrado[colunas_numericas].corr()
-            
-            fig_corr = go.Figure(data=go.Heatmap(
-                z=correlacao.values,
-                x=correlacao.columns,
-                y=correlacao.columns,
-                colorscale='RdBu_r',
-                zmin=-1,
-                zmax=1,
-                hoverongaps=False,
-                hovertemplate="<b>%{x}</b> vs <b>%{y}</b><br>Correlação: %{z:.3f}<extra></extra>",
-                text=correlacao.round(3).values,
-                texttemplate="%{text}",
-                textfont={"size": 10}
-            ))
-            
-            fig_corr.update_layout(
-                title="Mapa de Correlação entre Variáveis Numéricas",
-                xaxis_title="Variáveis",
-                yaxis_title="Variáveis"
-            )
-            
-            fig_corr = style_fig(fig_corr)
-            st.plotly_chart(fig_corr, use_container_width=True)
-        
-        # Análise de ticket médio
-        st.subheader("💰 Análise de Ticket Médio")
-        
-        if 'nome_loja' in df_filtrado.columns and 'valor_compra' in df_filtrado.columns:
-            ticket_analysis = df_filtrado.groupby('nome_loja').agg({
-                'valor_compra': ['count', 'mean', 'std']
-            }).round(2)
-            
-            ticket_analysis.columns = ['Transações', 'Ticket_Médio', 'Desvio_Padrão']
-            ticket_analysis = ticket_analysis.reset_index()
-            ticket_analysis = ticket_analysis[ticket_analysis['Transações'] >= 5]  # Filtrar lojas com poucas transações
-            
-            # Scatter plot interativo
-            fig_scatter = px.scatter(
-                ticket_analysis,
-                x='Transações',
-                y='Ticket_Médio',
-                size='Ticket_Médio',
-                color='Ticket_Médio',
-                hover_name='nome_loja',
-                title="Relação: Volume vs Ticket Médio por Loja",
-                labels={'Transações': 'Número de Transações', 'Ticket_Médio': 'Ticket Médio (R$)'},
-                size_max=30
-            )
-            
-            fig_scatter.update_traces(
-                hovertemplate="<b>%{hovertext}</b><br>Transações: %{x}<br>Ticket Médio: R$ %{y:.2f}<extra></extra>"
-            )
-            
-            fig_scatter = style_fig(fig_scatter)
-            st.plotly_chart(fig_scatter, use_container_width=True)
+        with col2:
+            # Distribuição por categoria (se disponível)
+            if cat_col in df.columns:
+                receita_categoria = df.groupby(cat_col)[vcol].sum()
+                fig_cat_pie = px.pie(
+                    receita_categoria, values=receita_categoria.values, names=receita_categoria.index,
+                    title="Distribuição da Receita por Categoria de Loja",
+                    color_discrete_sequence=px.colors.qualitative.Set3,
+                    hole=0.3  # Donut chart
+                )
+                fig_cat_pie.update_traces(textposition='inside', textinfo='percent+label')
+                fig_cat_pie = style_fig(fig_cat_pie)
+                st.plotly_chart(fig_cat_pie, use_container_width=True)
+            else:
+                st.info("Coluna 'categoria_estabelecimento' não encontrada. Pulando gráfico de categorias.")
 
     with tab3:
-        st.subheader("📊 Padrões de Consumo")
+        st.subheader("Padrões de Consumo e Eficiência")
         
-        # Análise de cesta
-        st.subheader("🛒 Análise de Cesta de Compras (Simulada)")
-        
-        # Simular dados de cesta (em um sistema real, viria de base de dados)
-        produtos_populares = {
-            'Eletrônicos': ['Smartphone', 'Tablet', 'Fones', 'Carregador'],
-            'Moda': ['Camiseta', 'Calça', 'Tênis', 'Moletom'],
-            'Casa': ['Cama', 'Mesa', 'Sofá', 'Cadeira'],
-            'Alimentação': ['Pizza', 'Hambúrguer', 'Sushi', 'Açaí']
-        }
-        
-        # Criar dados simulados de associação
-        associacoes = []
-        for categoria, produtos in produtos_populares.items():
-            for i, produto1 in enumerate(produtos):
-                for produto2 in produtos[i+1:]:
-                    associacoes.append({
-                        'Produto_A': produto1,
-                        'Produto_B': produto2,
-                        'Suporte': np.random.uniform(0.1, 0.3),
-                        'Confiança': np.random.uniform(0.4, 0.8),
-                        'Lift': np.random.uniform(1.2, 3.0)
-                    })
-        
-        df_associacoes = pd.DataFrame(associacoes)
-        
-        # Filtros para análise de associação
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         
         with col1:
-            min_suporte = st.slider("Suporte Mínimo", 0.0, 0.5, 0.1, 0.01)
+            # Volume por tipo de cupom
+            tipos_cupom_vol = df[tcol].value_counts()
+            fig_tipos_vol = px.pie(
+                tipos_cupom_vol, values=tipos_cupom_vol.values, names=tipos_cupom_vol.index,
+                title="Volume por Tipo de Cupom (Contagem)",
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+            fig_tipos_vol = style_fig(fig_tipos_vol)
+            st.plotly_chart(fig_tipos_vol, use_container_width=True)
+        
         with col2:
-            min_confianca = st.slider("Confiança Mínima", 0.0, 1.0, 0.5, 0.05)
-        with col3:
-            min_lift = st.slider("Lift Mínimo", 1.0, 5.0, 1.5, 0.1)
+            # Receita por tipo de cupom
+            tipos_cupom_rec = df.groupby(tcol)[vcol].sum()
+            fig_tipos_rec = px.pie(
+                tipos_cupom_rec, values=tipos_cupom_rec.values, names=tipos_cupom_rec.index,
+                title="Receita Gerada por Tipo de Cupom (R$)", 
+                hole=0.3,
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+            fig_tipos_rec = style_fig(fig_tipos_rec)
+            st.plotly_chart(fig_tipos_rec, use_container_width=True)
+            
         
-        # Aplicar filtros
-        df_filtrado_assoc = df_associacoes[
-            (df_associacoes['Suporte'] >= min_suporte) &
-            (df_associacoes['Confiança'] >= min_confianca) &
-            (df_associacoes['Lift'] >= min_lift)
-        ].sort_values('Lift', ascending=False)
-        
-        # Mostrar tabela de associações
-        st.dataframe(
-            df_filtrado_assoc.head(20).style.format({
-                'Suporte': '{:.2%}',
-                'Confiança': '{:.2%}', 
-                'Lift': '{:.2f}'
-            }),
-            use_container_width=True
+        # Box plot de distribuição de valores
+        df_sample = df.sample(n=min(2000, len(df)))  # Amostra para performance
+        top_10_lojas = df[scol].value_counts().nlargest(10).index
+        df_sample_top10 = df_sample[df_sample[scol].isin(top_10_lojas)]
+
+        fig_dist = px.box(
+            df_sample_top10, 
+            x=scol,
+            y=vcol,
+            color=tcol,
+            title="Distribuição do Valor da Compra por Loja (Top 10) e Tipo de Cupom",
+            labels={vcol: "Valor da Compra (R$)", scol: "Loja", tcol: "Tipo de Cupom"}
         )
         
-        # Gráfico de rede de associações (simplificado)
-        st.subheader("🕸️ Rede de Associações")
-        
-        if not df_filtrado_assoc.empty:
-            # Criar gráfico de barras para as melhores associações
-            fig_assoc = criar_grafico_interativo(
-                df_filtrado_assoc.head(15),
-                'bar', 'Lift', 'Produto_A',
-                title="Top Associações por Lift",
-                hover_data={'Suporte': ':.2%', 'Confiança': ':.2%', 'Lift': ':.2f'}
-            )
-            
-            fig_assoc.update_layout(
-                xaxis_title="Lift",
-                yaxis_title="Associação"
-            )
-            
-            st.plotly_chart(fig_assoc, use_container_width=True)
+        fig_dist = style_fig(fig_dist, y_fmt=",.2f")
+        st.plotly_chart(fig_dist, use_container_width=True)
 
-    with tab4:
-        st.subheader("🔮 Previsões e Tendências Futuras")
-        
-        # Simular previsões (em sistema real, usaria modelo de ML)
-        st.info("""
-        💡 **Sistema de Previsão**: Esta seção utiliza algoritmos de machine learning para prever 
-        tendências futuras baseadas em dados históricos. As previsões são atualizadas automaticamente 
-        conforme novos dados são processados.
-        """)
-        
-        # Criar dados de previsão simulados
-        ultimos_meses = 12
-        meses = pd.date_range(end=pd.Timestamp.now(), periods=ultimos_meses + 6, freq='M')
-        
-        # Dados históricos (simulados)
-        historico = {
-            'Mês': meses[:ultimos_meses],
-            'Receita_Real': np.random.normal(100000, 20000, ultimos_meses).cumsum() + 500000,
-            'Transações_Real': np.random.normal(1000, 200, ultimos_meses).cumsum() + 5000
-        }
-        
-        # Previsões (simuladas)
-        previsoes = {
-            'Mês': meses[ultimos_meses-1:],
-            'Receita_Prevista': np.random.normal(120000, 15000, 7).cumsum() + historico['Receita_Real'][-1],
-            'Transações_Previstas': np.random.normal(1200, 150, 7).cumsum() + historico['Transações_Real'][-1]
-        }
-        
-        df_historico = pd.DataFrame(historico)
-        df_previsoes = pd.DataFrame(previsoes)
-        
-        # Combinar dados
-        df_previsao_completa = pd.concat([
-            df_historico.assign(Tipo='Histórico'),
-            df_previsoes.assign(Tipo='Previsão')
-        ])
-        
-        # Gráfico de previsão
-        fig_previsao = go.Figure()
-        
-        # Histórico
-        fig_previsao.add_trace(go.Scatter(
-            name="Receita Real",
-            x=df_historico['Mês'],
-            y=df_historico['Receita_Real'],
-            mode='lines+markers',
-            line=dict(color=PRIMARY, width=3),
-            hovertemplate="<b>Mês:</b> %{x|%b %Y}<br><b>Receita Real:</b> R$ %{y:,.0f}<extra></extra>"
-        ))
-        
-        # Previsão
-        fig_previsao.add_trace(go.Scatter(
-            name="Receita Prevista",
-            x=df_previsoes['Mês'],
-            y=df_previsoes['Receita_Prevista'],
-            mode='lines+markers',
-            line=dict(color='orange', width=3, dash='dash'),
-            hovertemplate="<b>Mês:</b> %{x|%b %Y}<br><b>Receita Prevista:</b> R$ %{y:,.0f}<extra></extra>"
-        ))
-        
-        # Área de incerteza (simulada)
-        fig_previsao.add_trace(go.Scatter(
-            name="Margem de Erro",
-            x=df_previsoes['Mês'].tolist() + df_previsoes['Mês'].tolist()[::-1],
-            y=(df_previsoes['Receita_Prevista'] * 1.1).tolist() + (df_previsoes['Receita_Prevista'] * 0.9).tolist()[::-1],
-            fill='toself',
-            fillcolor='rgba(255,165,0,0.2)',
-            line=dict(color='rgba(255,255,255,0)'),
-            hoverinfo="skip",
-            showlegend=True
-        ))
-        
-        fig_previsao.update_layout(
-            title="📈 Previsão de Receita para os Próximos 6 Meses",
-            xaxis_title="Mês",
-            yaxis_title="Receita (R$)",
-            hovermode="x unified"
-        )
-        
-        fig_previsao = style_fig(fig_previsao)
-        st.plotly_chart(fig_previsao, use_container_width=True)
-        
-        # Métricas de previsão
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            crescimento_previsto = ((df_previsoes['Receita_Prevista'].iloc[-1] - df_historico['Receita_Real'].iloc[-1]) / 
-                                  df_historico['Receita_Real'].iloc[-1] * 100)
-            st.metric("Crescimento Previsto", f"{crescimento_previsto:.1f}%")
-            
-        with col2:
-            st.metric("Precisão do Modelo", "92.3%", "1.2%")
-            
-        with col3:
-            st.metric("Próximo Mês", f"R$ {df_previsoes['Receita_Prevista'].iloc[1]:,.0f}")
-            
-        with col4:
-            confianca = st.slider("🎯 Nível de Confiança", 80, 99, 90, key="confianca_previsao")
-            st.metric("Intervalo Confiança", f"±{100 - confiança}%")
-
-# ---------------- PÁGINAS EXISTENTES (mantidas para compatibilidade) ----------------
 def page_financeiro(tx):
     """
-    Página de análise financeira detalhada.
+    Página de análise financeira detalhada - DRE, ROI, balanço, etc.
+    Para profissionais de finanças entenderem a saúde do negócio.
     """
     top_header()
     hero("💰 Painel Financeiro", "Análise detalhada de receita, despesas, lucro e métricas financeiras")
     
-    # Usar a versão interativa como fallback
-    page_kpis_interativa(tx)
+    st.markdown("""
+    <div style="background-color: #f0f2f6; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #e0e0e0;">
+        <p style="color: #333; font-size: 16px;">
+        Esta secção oferece uma visão aprofundada da saúde financeira da sua operação de cupons. 
+        Analise o fluxo de caixa, demonstrações de resultados, e indicadores-chave de rentabilidade 
+        como <strong>ROI (Retorno sobre o Investimento)</strong> e <strong>ROIC (Retorno sobre o Capital Investido)</strong>.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("---")
+
+    # Carrega dados
+    df, get = normcols(tx)
+    dcol = get("data","data_captura")
+    vcol = get("valor_compra","valor")
+
+    # Dados de exemplo se necessário
+    if df.empty or not dcol or not vcol or dcol not in df.columns or vcol not in df.columns:
+        st.info("Sem dados financeiros suficientes em assets/transacoes.xlsx. A carregar dados de exemplo.")
+        dates = pd.date_range(start='2024-01-01', end='2024-12-31', freq='M')
+        example_data = []
+        for i, date in enumerate(dates):
+            example_data.append({
+                'data_captura': date,
+                'valor_compra': np.random.uniform(10000, 50000)
+            })
+        df = pd.DataFrame(example_data)
+        dcol = 'data_captura'
+        vcol = 'valor_compra'
+
+    # Prepara dados mensais
+    df[dcol] = pd.to_datetime(df[dcol], errors="coerce")
+    df["Mês"] = df[dcol].dt.to_period("M").astype(str)
+
+    mensal = df.groupby("Mês")[vcol].agg(['sum', 'mean', 'count']).reset_index()
+    mensal.columns = ["Mês", "Receita", "Ticket_Médio", "Conversões"]
+
+    # Simula dados financeiros (em uma aplicação real, viriam de base de dados)
+    rng = np.random.default_rng(42)
+    base_despesas = rng.uniform(0.6, 0.8, len(mensal))
+    for i in range(1, len(base_despesas)):
+        base_despesas[i] = 0.3 * base_despesas[i] + 0.7 * base_despesas[i-1]
+
+    # Cálculos financeiros realistas
+    mensal["Despesas"] = (mensal["Receita"] * base_despesas).round(2)
+    mensal["Lucro"] = (mensal["Receita"] - mensal["Despesas"]).round(2)
+    mensal["Margem_Lucro"] = (mensal["Lucro"] / mensal["Receita"] * 100).round(2)
+    mensal["CAC"] = (mensal["Despesas"] / mensal["Conversões"]).round(2)  # Custo de Aquisição por Cliente
+    
+    mensal["ROI"] = (mensal["Lucro"] / mensal["Despesas"] * 100).round(2)
+    mensal["ROIC"] = ((mensal["Lucro"] - (mensal["Despesas"] * 0.1)) / (mensal["Despesas"] * 0.6) * 100).round(2)
+    mensal["EBITDA"] = (mensal["Lucro"] * 1.2).round(2)  # Lucro antes de juros, impostos, depreciação e amortização
+    mensal["EBIT"] = (mensal["Lucro"] * 1.1).round(2)    # Lucro antes de juros e impostos
+    mensal["Faturamento_Liquido"] = (mensal["Receita"] * 0.85).round(2)  # Receita menos impostos
+    mensal["Custo_Variavel"] = (mensal["Receita"] * 0.45).round(2)
+    mensal["Custo_Fixo"] = (mensal["Despesas"] - mensal["Custo_Variavel"]).round(2)
+    mensal["Margem_Contribuicao"] = ((mensal["Receita"] - mensal["Custo_Variavel"]) / mensal["Receita"] * 100).round(2)
+    mensal["Ponto_Equilibrio"] = (mensal["Custo_Fixo"] / (mensal["Margem_Contribuicao"] / 100)).round(2)
+
+    # Demonstrações contábeis
+    mensal["Ativo_Total"] = (mensal["Receita"] * 2.5).round(2)
+    mensal["Passivo_Total"] = (mensal["Ativo_Total"] * 0.6).round(2)
+    mensal["Patrimonio_Liquido"] = (mensal["Ativo_Total"] - mensal["Passivo_Total"]).round(2)
+    mensal["Endividamento"] = (mensal["Passivo_Total"] / mensal["Ativo_Total"] * 100).round(2)
+    mensal["Liquidez_Corrente"] = (mensal["Ativo_Total"] * 0.4 / mensal["Passivo_Total"] * 0.7).round(2)
+    mensal["Margem_EBITDA"] = (mensal["EBITDA"] / mensal["Receita"] * 100).round(2)
+    mensal["Margem_EBIT"] = (mensal["EBIT"] / mensal["Receita"] * 100).round(2)
+
+    # Abas para diferentes análises financeiras
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 Fluxo Financeiro", "📊 Demonstrações Contábeis", "💰 Análise de Rentabilidade", "📋 Balanço Patrimonial"])
+
+    with tab1:
+        st.subheader("Fluxo Financeiro Mensal")
+
+        # Gráfico de receita, despesas e lucro
+        fig_fluxo = go.Figure()
+        fig_fluxo.add_trace(go.Bar(x=mensal["Mês"], y=mensal["Receita"], name="Receita", marker_color=PRIMARY, opacity=0.8))
+        fig_fluxo.add_trace(go.Bar(x=mensal["Mês"], y=mensal["Despesas"], name="Despesas", marker_color="#f59e0b", opacity=0.8))
+        fig_fluxo.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Lucro"], name="Lucro", mode="lines+markers", line=dict(color="#000000", width=3), marker=dict(size=8)))
+        fig_fluxo.update_layout(
+            title="Evolução da Receita, Despesas e Lucro", 
+            xaxis_title="Mês", 
+            yaxis_title="Valor (R$)", 
+            barmode="group", 
+            hovermode="x unified",
+            margin=dict(t=80, b=140, l=80, r=80)
+        )
+        st.plotly_chart(style_fig(fig_fluxo, y_fmt=",.2f"), use_container_width=True)
+
+        # KPIs financeiros
+        col1, col2, col3, col4 = st.columns(4)
+        with col1: 
+            kpi_card("Receita Total", f"R$ {mensal['Receita'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
+        with col2: 
+            kpi_card("Lucro Total", f"R$ {mensal['Lucro'].sum():,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
+        with col3: 
+            kpi_card("Margem Média", f"{mensal['Margem_Lucro'].mean():.1f}%")
+        with col4: 
+            kpi_card("CAC Médio", f"R$ {mensal['CAC'].mean():.2f}")
+
+    with tab2:
+        st.subheader("Demonstração do Resultado do Exercício (DRE)")
+        
+        ultimo_mes = mensal.iloc[-1] if len(mensal) > 0 else None
+        
+        if ultimo_mes is not None:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**DRE do Último Mês**")
+                # Estrutura de uma DRE típica
+                dre_data = {
+                    'Descrição': [
+                        'Receita Bruta',
+                        '(-) Impostos (15%)',
+                        'Receita Líquida',
+                        '(-) Custo Variável',
+                        'Margem de Contribuição',
+                        '(-) Custo Fixo',
+                        'EBITDA',
+                        '(-) Depreciação/Amortização',
+                        'EBIT',
+                        '(-) Juros e Tributos',
+                        'Lucro Líquido'
+                    ],
+                    'Valor (R$)': [
+                        ultimo_mes['Receita'],
+                        ultimo_mes['Receita'] * 0.15,
+                        ultimo_mes['Faturamento_Liquido'],
+                        ultimo_mes['Custo_Variavel'],
+                        ultimo_mes['Receita'] - ultimo_mes['Custo_Variavel'],
+                        ultimo_mes['Custo_Fixo'],
+                        ultimo_mes['EBITDA'],
+                        ultimo_mes['EBITDA'] - ultimo_mes['EBIT'],
+                        ultimo_mes['EBIT'],
+                        ultimo_mes['EBIT'] - ultimo_mes['Lucro'],
+                        ultimo_mes['Lucro']
+                    ]
+                }
+                
+                dre_df = pd.DataFrame(dre_data)
+                dre_df['% Receita'] = (dre_df['Valor (R$)'] / ultimo_mes['Receita'] * 100).round(1)
+                st.dataframe(dre_df.style.format({
+                    'Valor (R$)': 'R$ {:.2f}',
+                    '% Receita': '{:.1f}%'
+                }), use_container_width=True)
+            
+            with col2:
+                # Gráfico sunburst da composição da DRE
+                fig_dre = px.sunburst(
+                    names=[
+                        'Receita Líquida', 'Custo Variável', 'Custo Fixo', 
+                        'EBITDA', 'EBIT', 'Lucro Líquido'
+                    ],
+                    parents=[
+                        '', 'Receita Líquida', 'Margem de Contribuição',
+                        'Margem de Contribuição', 'EBITDA', 'EBIT'
+                    ],
+                    values=[
+                        ultimo_mes['Faturamento_Liquido'],
+                        ultimo_mes['Custo_Variavel'],
+                        ultimo_mes['Custo_Fixo'],
+                        ultimo_mes['EBITDA'],
+                        ultimo_mes['EBITDA'] - ultimo_mes['EBIT'],
+                        ultimo_mes['Lucro']
+                    ],
+                    title="Composição da DRE - Último Mês"
+                )
+                fig_dre = style_fig(fig_dre)
+                st.plotly_chart(fig_dre, use_container_width=True)
+
+        # Evolução das margens
+        fig_margens = go.Figure()
+        fig_margens.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Margem_Lucro"], name="Margem Líquida", mode="lines+markers", line=dict(width=3)))
+        fig_margens.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Margem_EBITDA"], name="Margem EBITDA", mode="lines+markers", line=dict(width=3)))
+        fig_margens.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Margem_EBIT"], name="Margem EBIT", mode="lines+markers", line=dict(width=3)))
+        fig_margens.update_layout(
+            title="Evolução das Margens (%)",
+            xaxis_title="Mês",
+            yaxis_title="Margem (%)",
+            margin=dict(t=80, b=140, l=80, r=80)
+        )
+        st.plotly_chart(style_fig(fig_margens), use_container_width=True)
+
+    with tab3:
+        st.subheader("Análise de Rentabilidade e Retorno")
+        
+        # ROIC vs ROI
+        fig_roic = go.Figure()
+        fig_roic.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["ROIC"], name="ROIC", mode="lines+markers", 
+                                    line=dict(color="#10b981", width=3)))
+        fig_roic.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["ROI"], name="ROI", mode="lines+markers", 
+                                    line=dict(color="#3b82f6", width=3)))
+        fig_roic.add_hline(y=15, line_dash="dash", line_color="green", annotation_text="Meta ROIC 15%")
+        fig_roic.update_layout(
+            title="ROIC vs ROI - Comparativo de Retorno",
+            xaxis_title="Mês",
+            yaxis_title="Retorno (%)",
+            margin=dict(t=80, b=140, l=80, r=80)
+        )
+        st.plotly_chart(style_fig(fig_roic), use_container_width=True)
+
+        # KPIs de rentabilidade
+        col1, col2, col3, col4 = st.columns(4)
+        with col1: 
+            kpi_card("ROIC Médio", f"{mensal['ROIC'].mean():.1f}%")
+        with col2: 
+            kpi_card("ROI Médio", f"{mensal['ROI'].mean():.1f}%")
+        with col3: 
+            kpi_card("Melhor ROIC", f"{mensal['ROIC'].max():.1f}%")
+        with col4: 
+            kpi_card("Meta ROIC", "15.0%")
+
+        # Ponto de equilíbrio
+        fig_equilibrio = go.Figure()
+        fig_equilibrio.add_trace(go.Bar(x=mensal["Mês"], y=mensal["Receita"], name="Receita", marker_color=PRIMARY))
+        fig_equilibrio.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Ponto_Equilibrio"], name="Ponto de Equilíbrio", 
+                                        mode="lines+markers", line=dict(color="#ef4444", width=3, dash="dash")))
+        fig_equilibrio.update_layout(
+            title="Receita vs Ponto de Equilíbrio",
+            xaxis_title="Mês",
+            yaxis_title="Valor (R$)",
+            margin=dict(t=80, b=140, l=80, r=80)
+        )
+        st.plotly_chart(style_fig(fig_equilibrio, y_fmt=",.2f"), use_container_width=True)
+
+        # Tabela detalhada de rentabilidade
+        st.subheader("Indicadores de Rentabilidade Detalhados")
+        rentabilidade = mensal[["Mês", "Receita", "Lucro", "EBITDA", "EBIT", "ROI", "ROIC", "Margem_Lucro", "Margem_EBITDA"]].round(2)
+        st.dataframe(rentabilidade.style.format({
+            "Receita": "R$ {:.2f}", "Lucro": "R$ {:.2f}", "EBITDA": "R$ {:.2f}", 
+            "EBIT": "R$ {:.2f}", "ROI": "{:.1f}%", "ROIC": "{:.1f}%",
+            "Margem_Lucro": "{:.1f}%", "Margem_EBITDA": "{:.1f}%"
+        }), use_container_width=True)
+
+    with tab4:
+        st.subheader("Balanço Patrimonial e Indicadores de Solidez")
+        
+        if len(mensal) > 0:
+            ultimo_mes = mensal.iloc[-1]
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Balanço Patrimonial - Último Mês**")
+                balanco_data = {
+                    'Ativo': [
+                        'Ativo Circulante',
+                        'Ativo Não Circulante',
+                        'Total do Ativo'
+                    ],
+                    'Valor (R$)': [
+                        ultimo_mes['Ativo_Total'] * 0.4,
+                        ultimo_mes['Ativo_Total'] * 0.6,
+                        ultimo_mes['Ativo_Total']
+                    ]
+                }
+                
+                balanco_df = pd.DataFrame(balanco_data)
+                st.dataframe(balanco_df.style.format({
+                    'Valor (R$)': 'R$ {:.2f}'
+                }), use_container_width=True)
+            
+            with col2:
+                st.markdown("**Passivo e Patrimônio Líquido**")
+                passivo_data = {
+                    'Passivo': [
+                        'Passivo Circulante',
+                        'Passivo Não Circulante',
+                        'Patrimônio Líquido',
+                        'Total do Passivo + PL'
+                    ],
+                    'Valor (R$)': [
+                        ultimo_mes['Passivo_Total'] * 0.7,
+                        ultimo_mes['Passivo_Total'] * 0.3,
+                        ultimo_mes['Patrimonio_Liquido'],
+                        ultimo_mes['Passivo_Total'] + ultimo_mes['Patrimonio_Liquido']
+                    ]
+                }
+                
+                passivo_df = pd.DataFrame(passivo_data)
+                st.dataframe(passivo_df.style.format({
+                    'Valor (R$)': 'R$ {:.2f}'
+                }), use_container_width=True)
+
+            # Indicadores de solidez
+            st.markdown("**Indicadores de Solidez Financeira**")
+            indicadores_data = {
+                'Indicador': [
+                    'Grau de Endividamento',
+                    'Liquidez Corrente',
+                    'ROIC',
+                    'Margem Líquida'
+                ],
+                'Valor': [
+                    f"{ultimo_mes['Endividamento']:.1f}%",
+                    f"{ultimo_mes['Liquidez_Corrente']:.2f}",
+                    f"{ultimo_mes['ROIC']:.1f}%",
+                    f"{ultimo_mes['Margem_Lucro']:.1f}%"
+                ],
+                'Interpretação': [
+                    'Aceitável (<60%)' if ultimo_mes['Endividamento'] < 60 else 'Alto',
+                    'Boa (>1.0)' if ultimo_mes['Liquidez_Corrente'] > 1.0 else 'Atenção',
+                    'Bom (>15%)' if ultimo_mes['ROIC'] > 15 else 'Regular',
+                    'Boa (>10%)' if ultimo_mes['Margem_Lucro'] > 10 else 'Regular'
+                ]
+            }
+            
+            indicadores_df = pd.DataFrame(indicadores_data)
+            st.dataframe(indicadores_df, use_container_width=True)
+
+        # Evolução do balanço
+        fig_balanco = go.Figure()
+        fig_balanco.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Ativo_Total"], name="Ativo Total", mode="lines+markers", line=dict(width=3)))
+        fig_balanco.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Passivo_Total"], name="Passivo Total", mode="lines+markers", line=dict(width=3)))
+        fig_balanco.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Patrimonio_Liquido"], name="Patrimônio Líquido", mode="lines+markers", line=dict(width=3)))
+        fig_balanco.update_layout(
+            title="Evolução do Balanço Patrimonial",
+            xaxis_title="Mês",
+            yaxis_title="Valor (R$)",
+            margin=dict(t=80, b=140, l=80, r=80)
+        )
+        st.plotly_chart(style_fig(fig_balanco, y_fmt=",.2f"), use_container_width=True)
+
+        # Indicadores de estrutura
+        fig_estrutura = go.Figure()
+        fig_estrutura.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Endividamento"], name="Grau de Endividamento", mode="lines+markers", line=dict(width=3)))
+        fig_estrutura.add_trace(go.Scatter(x=mensal["Mês"], y=mensal["Liquidez_Corrente"], name="Liquidez Corrente", mode="lines+markers", line=dict(width=3), yaxis="y2"))
+        fig_estrutura.update_layout(
+            title="Indicadores de Estrutura Financeira",
+            xaxis_title="Mês",
+            yaxis=dict(title="Endividamento (%)"),
+            yaxis2=dict(overlaying="y", side="right", title="Liquidez Corrente"),
+            margin=dict(t=80, b=140, l=80, r=80)
+        )
+        st.plotly_chart(style_fig(fig_estrutura), use_container_width=True)
 
 def page_eco():
     """
-    Página de contexto econômico.
+    Página de contexto econômico - mostra indicadores macroeconômicos.
+    Ajuda a entender o ambiente externo que afeta o negócio.
     """
     top_header()
     hero("📈 Painel Econômico", "Indicadores macroeconômicos e tendências do mercado")
-    
-    st.info("""
-    🚧 **Página em Desenvolvimento**
-    
-    Esta página está sendo atualizada com visualizações interativas avançadas.
-    Enquanto isso, explore as outras seções do dashboard.
-    """)
+
+    st.markdown("""
+    <div style="background-color: #f0f2f6; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #e0e0e0;">
+        <p style="color: #333; font-size: 16px;">
+        Nenhum negócio opera isoladamente. Esta página contextualiza o desempenho dos seus cupons 
+        com o cenário macroeconômico.
+        </p>
+        <p style="color: #333; font-size: 16px;">
+        Acompanhe a evolução de indicadores cruciais como a <strong>Taxa SELIC</strong>, 
+        <strong>IPCA (Inflação)</strong> e <strong>Níveis de Inadimplência</strong>, 
+        e entenda como fatores externos podem estar a influenciar o poder de compra dos seus clientes.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("---")
+
+    # Carrega dados econômicos
+    if os.path.exists(ECON_PATH):
+        try:
+            eco = pd.read_csv(ECON_PATH)
+        except Exception:
+            eco = pd.DataFrame()
+    else:
+        eco = pd.DataFrame()
+
+    def _normalize_cols(df):
+        """
+        Normaliza nomes de colunas para dados econômicos.
+        """
+        df = df.copy()
+        df.columns = [str(c).strip() for c in df.columns]
+        lower = {c.lower(): c for c in df.columns}
+        
+        def pick(*names):
+            for n in names:
+                if n.lower() in lower:
+                    return lower[n.lower()]
+            for n in names:
+                for lc, orig in lower.items():
+                    if n.lower() in lc:
+                        return orig
+            return None
+            
+        return df, pick
+
+    def _as_numeric(s):
+        """
+        Converte strings para números, tratando porcentagens e vírgulas decimais.
+        """
+        return pd.to_numeric(
+            s.astype(str).str.replace("%","", regex=False).str.replace(",", ".", regex=False).str.replace(" ", "", regex=False),
+            errors="coerce"
+        )
+
+    # Dados de exemplo se não houver dados reais
+    if eco.empty:
+        st.info("Ficheiro 'economia.csv' não encontrado. A carregar dados de exemplo.")
+        eco = pd.DataFrame({
+            "Ano": list(range(2019, 2026)),
+            "PIB_Variacao":     [1.4, -3.9, 4.6, 2.9, 2.3, 2.1, 2.2],
+            "Inflacao_IPCA":    [4.3,  4.5,10.1, 5.8, 4.6, 3.9, 4.2],
+            "Selic":            [5.0,  2.0, 9.25,13.75,11.75,10.5,10.0],
+            "Inadimplencia":    [3.7,  4.2, 4.8, 5.3, 4.9, 4.6, 4.4],
+            "Desemprego":       [11.0,13.5,13.2, 9.9, 8.5, 8.1, 7.8],
+            "Cambio_USD":       [4.0,  5.2, 5.4, 5.1, 4.9, 4.8, 4.7],
+            "Consumo_Familias": [1.8, -5.2, 3.9, 3.2, 2.8, 2.5, 2.3]
+        })
+
+    eco, pick = _normalize_cols(eco)
+    col_ano   = pick("ano","year")
+    col_date  = pick("date","data")
+    col_selic = pick("selic","taxa_selic","juros")
+    col_ipca  = pick("ipca","inflacao_ipca","inflação","inflacao")
+    col_inad  = pick("inadimpl","default")
+
+    eco_anual = pd.DataFrame()
+    eco_mensal = pd.DataFrame()
+
+    # Prepara dados anuais e mensais
+    if col_date is not None:
+        # Dados com datas específicas
+        eco[col_date] = pd.to_datetime(eco[col_date], errors="coerce")
+        eco = eco.dropna(subset=[col_date]).sort_values(col_date)
+        
+        # Converte para numérico
+        for c in [col_selic, col_ipca, col_inad]:
+            if c is not None and c in eco.columns:
+                eco[c] = _as_numeric(eco[c])
+
+        eco_mensal = eco.rename(columns={col_date: "Data"}).copy()
+        rename_map = {}
+        if col_selic and col_selic in eco_mensal.columns: 
+            rename_map[col_selic] = "Selic"
+        if col_ipca  and col_ipca  in eco_mensal.columns: 
+            rename_map[col_ipca]  = "IPCA"
+        if col_inad  and col_inad  in eco_mensal.columns: 
+            rename_map[col_inad]  = "Inadimplencia"
+        eco_mensal.rename(columns=rename_map, inplace=True)
+        eco_mensal["Ano"] = eco_mensal["Data"].dt.year
+
+        # Agrupa por ano
+        grp = eco_mensal.groupby("Ano")
+        d = {"Ano": grp.size().index}
+        if "Selic" in eco_mensal.columns: 
+            d["Selic"] = grp["Selic"].mean().values
+        if "IPCA"  in eco_mensal.columns: 
+            d["IPCA"]  = grp["IPCA"].mean().values
+        if "Inadimplencia" in eco_mensal.columns: 
+            d["Inadimplencia"] = grp["Inadimplencia"].mean().values
+        eco_anual = pd.DataFrame(d)
+
+    elif col_ano is not None:
+        # Dados anuais
+        eco = eco.sort_values(col_ano)
+        eco_anual = eco.rename(columns={col_ano: "Ano"}).copy()
+        
+        # Renomeia colunas para nomes padrão
+        if col_selic and col_selic in eco_anual.columns and col_selic != "Selic": 
+            eco_anual.rename(columns={col_selic: "Selic"}, inplace=True)
+        if col_ipca  and col_ipca  in eco_anual.columns and col_ipca  != "IPCA": 
+            eco_anual.rename(columns={col_ipca: "IPCA"}, inplace=True)
+        if col_inad  and col_inad  in eco_anual.columns and col_inad  != "Inadimplencia": 
+            eco_anual.rename(columns={col_inad: "Inadimplencia"}, inplace=True)
+            
+        # Converte para numérico
+        for c in ["Selic","IPCA","Inadimplencia"]:
+            if c in eco_anual.columns:
+                eco_anual[c] = _as_numeric(eco_anual[c])
+
+        # Cria dados mensais interpolados a partir dos anuais
+        meses = pd.date_range(start="2024-01-01", end="2025-12-31", freq="M")
+        eco_mensal = pd.DataFrame({"Data": meses})
+        
+        def interp(col):
+            """Interpola dados anuais para mensais com um pouco de ruído."""
+            if col not in eco_anual.columns or eco_anual[col].dropna().empty:
+                return pd.Series([pd.NA]*len(meses))
+            v24 = eco_anual.loc[eco_anual["Ano"]==2024, col].iloc[0] if (eco_anual["Ano"]==2024).any() else eco_anual[col].iloc[-1]
+            v25 = eco_anual.loc[eco_anual["Ano"]==2025, col].iloc[0] if (eco_anual["Ano"]==2025).any() else v24
+            lin = np.linspace(v24, v25, len(meses))
+            rng = np.random.default_rng(7)
+            noise = rng.normal(0, max(0.02, 0.005*abs(v25)), len(meses))
+            return pd.Series(lin + noise).round(2)
+            
+        if "Selic" in eco_anual.columns: 
+            eco_mensal["Selic"] = interp("Selic")
+        if "IPCA"  in eco_mensal.columns: 
+            eco_mensal["IPCA"]  = interp("IPCA")
+        if "Inadimplencia" in eco_anual.columns: 
+            eco_mensal["Inadimplencia"] = interp("Inadimplencia")
+
+    else:
+        st.warning("Não foi possível identificar colunas de 'Ano' ou 'Data' nos dados econômicos.")
+        return
+
+    # Abas para visualização anual e mensal
+    tab1, tab2 = st.tabs(["📊 Evolução Anual", "📈 Evolução Mensal"])
+
+    with tab1:
+        st.subheader("Evolução Anual — SELIC, IPCA e Inadimplência")
+
+        if "Selic" in eco_anual.columns and eco_anual["Selic"].notna().any():
+            fig_selic_y = go.Figure()
+            fig_selic_y.add_trace(go.Scatter(x=eco_anual["Ano"], y=eco_anual["Selic"], mode="lines+markers", name="SELIC (%)", line=dict(width=3)))
+            fig_selic_y.update_layout(
+                title="Evolução SELIC (%) — Anual", 
+                xaxis_title="Ano", 
+                yaxis_title="SELIC (%)",
+                margin=dict(t=80, b=140, l=80, r=80)
+            )
+            st.plotly_chart(style_fig(fig_selic_y), use_container_width=True)
+
+        if "IPCA" in eco_anual.columns and eco_anual["IPCA"].notna().any():
+            fig_ipca_y = go.Figure()
+            fig_ipca_y.add_trace(go.Bar(x=eco_anual["Ano"], y=eco_anual["IPCA"], name="IPCA (%)", marker_color=PRIMARY, opacity=0.85))
+            fig_ipca_y.update_layout(
+                title="Evolução IPCA (%) — Anual", 
+                xaxis_title="Ano", 
+                yaxis_title="IPCA (%)",
+                margin=dict(t=80, b=140, l=80, r=80)
+            )
+            st.plotly_chart(style_fig(fig_ipca_y), use_container_width=True)
+
+        if "Inadimplencia" in eco_anual.columns and eco_anual["Inadimplencia"].notna().any():
+            fig_inad_y = go.Figure()
+            fig_inad_y.add_trace(go.Scatter(x=eco_anual["Ano"], y=eco_anual["Inadimplencia"], mode="lines+markers", name="Inadimplência (%)", line=dict(width=3)))
+            fig_inad_y.update_layout(
+                title="Evolução da Inadimplência (%) — Anual", 
+                xaxis_title="Ano", 
+                yaxis_title="Inadimplência (%)",
+                margin=dict(t=80, b=140, l=80, r=80)
+            )
+            st.plotly_chart(style_fig(fig_inad_y), use_container_width=True)
+
+    with tab2:
+        st.subheader("Evolução Mensal — SELIC, IPCA e Inadimplência")
+
+        if "Selic" in eco_mensal.columns and eco_mensal["Selic"].notna().any():
+            fig = px.line(eco_mensal, x="Data", y="Selic", title="Evolução SELIC (%) — Mensal")
+            fig.update_layout(margin=dict(t=80, b=140, l=80, r=80))
+            st.plotly_chart(style_fig(fig), use_container_width=True)
+
+        if "IPCA" in eco_mensal.columns and eco_mensal["IPCA"].notna().any():
+            fig = px.line(eco_mensal, x="Data", y="IPCA", title="Evolução IPCA (%) — Mensal")
+            fig.update_layout(margin=dict(t=80, b=140, l=80, r=80))
+            st.plotly_chart(style_fig(fig), use_container_width=True)
+
+        if "Inadimplencia" in eco_mensal.columns and eco_mensal["Inadimplencia"].notna().any():
+            fig = px.area(eco_mensal, x="Data", y="Inadimplencia", title="Evolução da Inadimplência (%) — Mensal")
+            fig.update_layout(margin=dict(t=80, b=140, l=80, r=80))
+            st.plotly_chart(style_fig(fig), use_container_width=True)
 
 def page_simulacaologin():
     """
-    Página de gamificação.
+    Página de gamificação - onde usuários acompanham seu progresso.
+    A parte mais divertida do sistema!
     """
     top_header()
     hero("🎯 Simulação de Uso de Cupons", "Sistema de gamificação e progressão por níveis")
+
+    st.markdown("""
+    <div style="background-color: #f0f2f6; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #e0e0e0;">
+        <p style="color: #333; font-size: 16px;">
+        Esta é a sua área pessoal de gamificação! <strong>Registe os cupons</strong> que você usa para 
+        subir de nível, ganhar <strong>XP</strong> e desbloquear <strong>conquistas</strong>.
+        </p>
+        <p style="color: #333; font-size: 16px;">
+        Use o simulador para planear o seu progresso e veja o seu histórico de economia a crescer.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("---")
+
+    # CSS personalizado para garantir que as métricas fiquem com texto preto
+    metric_style = """
+        <style>
+            [data-testid="stTabsBar"] button p {
+                color: #000000 !important;
+            }
+            [data-testid="stTabsBar"] button[aria-selected="true"] p {
+                font-weight: bold;
+                color: #000000 !important;
+            }
+            .black-metric-label {
+                font-size: 0.875rem; 
+                color: #000000 !important;
+                margin-bottom: 0.25rem;
+                line-height: 1.5;
+            }
+            .black-metric-value {
+                font-size: 1.5rem; 
+                font-weight: 500;
+                color: #000000;
+            }
+            .metric-box {
+                background-color: #f9f9f9;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 16px;
+                text-align: center;
+                height: 100%; 
+            }
+        </style>
+    """
+    st.markdown(metric_style, unsafe_allow_html=True)
+
+    # Cria arquivo de usos de cupom se não existir
+    if not os.path.exists(CUPOM_USOS_PATH):
+        pd.DataFrame(columns=["email","data","loja","tipo","valor","local"]).to_csv(CUPOM_USOS_PATH, index=False)
+
+    # Verifica se usuário está logado
+    email = st.session_state.get("user_email")
+    if not email:
+        st.info("Faça login para acessar a simulação.")
+        return
+
+    # Carrega dados do usuário
+    df_users = load_users()
+    user_data = df_users[df_users["email"] == email]
     
-    st.info("""
-    🚧 **Página em Desenvolvimento**
+    if user_data.empty:
+        st.error("Usuário não encontrado.")
+        return
+        
+    # Extrai dados do usuário
+    cupons_usados = int(user_data["cupons_usados"].iloc[0]) if not pd.isna(user_data["cupons_usados"].iloc[0]) else 0
+    total_economizado = float(user_data["total_economizado"].iloc[0]) if not pd.isna(user_data["total_economizado"].iloc[0]) else 0.0
+    xp = int(user_data["xp"].iloc[0]) if not pd.isna(user_data["xp"].iloc[0]) else 0
+    nivel_id = int(user_data["nivel"].iloc[0]) if not pd.isna(user_data["nivel"].iloc[0]) else 1
     
-    Esta página está sendo atualizada com mais interações e recursos de gamificação.
-    Enquanto isso, explore as análises interativas disponíveis.
-    """)
+    if nivel_id not in gamificacao.niveis:
+        nivel_id = 1
+        
+    nivel_info = gamificacao.niveis.get(nivel_id, gamificacao.niveis[1])
+    progresso, proximo_nivel_info = gamificacao.calcular_progresso(cupons_usados, nivel_id)
+
+    # Sistema de abas organizado
+    tab1, tab2, tab3, tab4 = st.tabs(["🎮 Progresso", "📊 Desempenho", "🎯 Simulação", "🏆 Conquistas"])
+
+    with tab1:
+        # Layout principal do progresso
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            # Card de Nível Atual - mostra nível atual e progresso
+            st.markdown(f"""
+                <div style="background: linear-gradient(135deg, {nivel_info['cor']}20, {nivel_info['cor']}40); 
+                            padding: 20px; border-radius: 15px; border-left: 5px solid {nivel_info['cor']};
+                            margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 14px; color: #666;">Seu Nível Atual</div>
+                            <div style="font-size: 24px; font-weight: bold; color: {nivel_info['cor']};">{nivel_info['nome']}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 14px; color: #666;">Cashback</div>
+                            <div style="font-size: 20px; font-weight: bold; color: {nivel_info['cor']};">{nivel_info['cashback']}%</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666;">
+                            <span>{cupons_usados} cupons usados</span>
+                            <span>{proximo_nivel_info['cupons_necessarios'] if proximo_nivel_info else 'Máximo'}</span>
+                        </div>
+                        <div style="background: #e0e0e0; height: 8px; border-radius: 4px; margin-top: 5px;">
+                            <div style="background: {nivel_info['cor']}; height: 100%; width: {progresso * 100}%; border-radius: 4px;"></div>
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            # Estatísticas Rápidas
+            col_stat1, col_stat2, col_stat3 = st.columns(3)
+            
+            with col_stat1:
+                st.markdown(f'''
+                    <div class="metric-box">
+                        <div class="black-metric-label">💰 Total Economizado</div>
+                        <div class="black-metric-value">R$ {total_economizado:.2f}</div>
+                    </div>
+                ''', unsafe_allow_html=True)
+                
+            with col_stat2:
+                st.markdown(f'''
+                    <div class="metric-box">
+                        <div class="black-metric-label">⭐ XP Acumulado</div>
+                        <div class="black-metric-value">{xp}</div>
+                    </div>
+                ''', unsafe_allow_html=True)
+                
+            with col_stat3:
+                if proximo_nivel_info:
+                    st.markdown(f'''
+                        <div class="metric-box">
+                            <div class="black-metric-label">🏆 Próximo Nível</div>
+                            <div class="black-metric-value">{proximo_nivel_info["nome"]}</div>
+                        </div>
+                    ''', unsafe_allow_html=True)
+                else:
+                    st.markdown(f'''
+                        <div class="metric-box">
+                            <div class="black-metric-label">🏆 Nível Máximo</div>
+                            <div class="black-metric-value">Alcançado!</div>
+                        </div>
+                    ''', unsafe_allow_html=True)
+
+        with col2:
+            # Conquistas Rápidas - mostra as 3 conquistas mais recentes
+            st.markdown("**🏅 Conquistas Recentes**")
+            conquistas_desbloqueadas = []
+            for key, conquista in gamificacao.conquistas.items():
+                if user_data[f"conquista_{key}"].iloc[0] if f"conquista_{key}" in user_data.columns else False:
+                    conquistas_desbloqueadas.append(conquista)
+            
+            if conquistas_desbloqueadas:
+                for conquista in conquistas_desbloqueadas[:3]:  # Mostra apenas as 3 mais recentes
+                    st.markdown(f"<div style='color: #000000;'>{conquista['icone']} <strong>{conquista['nome']}</strong></div>", unsafe_allow_html=True)
+                    st.caption(conquista['descricao'])
+            else:
+                st.info("Nenhuma conquista desbloqueada ainda.")
+
+        # Sistema de Níveis - mostra todos os níveis disponíveis
+        st.subheader("💎 Jornada de Níveis")
+        niveis_cols = st.columns(len(gamificacao.niveis))
+        
+        for idx, (nivel_key, info) in enumerate(gamificacao.niveis.items()):
+            with niveis_cols[idx]:
+                is_current = nivel_key == nivel_id
+                is_unlocked = cupons_usados >= info["cupons_necessarios"]
+                
+                border_color = info["cor"] if is_current or is_unlocked else "#e0e0e0"
+                bg_color = f"{info['cor']}20" if is_current else "#f8f9fa" if is_unlocked else "#f8f9fa"
+                text_color = info["cor"] if is_current or is_unlocked else "#999"
+                
+                nivel_html = f"""
+                <div style="background: {bg_color}; padding: 15px; border-radius: 10px; border: 2px solid {border_color}; text-align: center; height: 120px;">
+                    <div style="font-size: 20px; color: {text_color};">{info['nome'].split(' ')[0]}</div>
+                    <div style="font-size: 12px; color: {text_color}; margin: 5px 0;">{info['cupons_necessarios']}+ cupons</div>
+                    <div style="font-size: 14px; font-weight: bold; color: {info['cor']};">{info['cashback']}% cashback</div>
+                """
+                
+                if is_unlocked:
+                    nivel_html += '<div style="font-size: 10px; color: green; margin-top: 5px;">✓ Desbloqueado</div>'
+                if is_current:
+                    nivel_html += '<div style="font-size: 10px; color: blue; margin-top: 5px;">● Atual</div>'
+                
+                nivel_html += "</div>"
+                
+                st.markdown(nivel_html, unsafe_allow_html=True)
+
+        # Registro de Cupom - formulário para registrar novo cupom
+        st.markdown("---")
+        st.subheader("🎁 Registrar Uso de Cupom")
+        
+        with st.form("form_cupom", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                loja = st.text_input("🏪 Loja", placeholder="Ex: Supermercado São João")
+                tipo = st.selectbox("🎯 Tipo de Cupom", ["Desconto", "Cashback", "Fidelidade", "Primeira Compra", "Frete Grátis"])
+            with col2:
+                valor = st.number_input("💰 Valor do Cupom (R$)", min_value=0.0, step=1.0, format="%.2f")
+                local = st.text_input("📍 Local", placeholder="Ex: São Paulo - SP")
+            
+            submit = st.form_submit_button("🎊 Registrar Cupom", use_container_width=True)
+
+        if submit:
+            if not loja:
+                st.warning("Por favor, informe o nome da loja.")
+            else:
+                cupom_data = {
+                    "loja": loja,
+                    "tipo": tipo,
+                    "valor": valor,
+                    "local": local
+                }
+                
+                # Atualiza gamificação e verifica conquistas
+                conquistas_desbloqueadas = atualizar_usuario_gamificacao(email, cupom_data)
+                
+                # Salva no histórico
+                usos = pd.read_csv(CUPOM_USOS_PATH) if os.path.exists(CUPOM_USOS_PATH) else pd.DataFrame(columns=["email","data","loja","tipo","valor","local"])
+                usos = pd.concat([usos, pd.DataFrame([{
+                    "email": email, 
+                    "data": datetime.datetime.now().isoformat(),
+                    "loja": loja, 
+                    "tipo": tipo, 
+                    "valor": float(valor), 
+                    "local": local
+                }])], ignore_index=True)
+                usos.to_csv(CUPOM_USOS_PATH, index=False)
+
+                st.success("🎉 Cupom registrado com sucesso!")
+                
+                # Mostra conquistas desbloqueadas com animação
+                if conquistas_desbloqueadas:
+                    st.balloons()
+                    for conquista_id in conquistas_desbloqueadas:
+                        conquista = gamificacao.conquistas[conquista_id]
+                        st.markdown(f"""
+                            <div style="background: linear-gradient(135deg, #FFD700, #FFA500); 
+                                        padding: 15px; border-radius: 10px; text-align: center; 
+                                        margin: 10px 0; border: 2px solid #FF6B00;">
+                                <div style="font-size: 24px;">{conquista['icone']}</div>
+                                <div style="font-size: 18px; font-weight: bold; color: #000;">Conquista Desbloqueada!</div>
+                                <div style="font-size: 16px; color: #000;">{conquista['nome']}</div>
+                                <div style="font-size: 14px; color: #333;">{conquista['descricao']}</div>
+                                <div style="font-size: 12px; color: #666; margin-top: 5px;">+{conquista['xp']} XP ganhos!</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                
+                st.rerun()
+
+    with tab2:
+        st.subheader("📊 Análise de Desempenho")
+        
+        # Gráfico de progresso mensal (simulado)
+        fig_progresso = go.Figure()
+        
+        meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun']
+        cupons_mensais = [max(1, cupons_usados // len(meses)) for _ in range(len(meses))]
+        if cupons_mensais:
+            cupons_mensais[-1] = cupons_usados - sum(cupons_mensais[:-1])
+        
+        fig_progresso.add_trace(go.Bar(
+            x=meses,
+            y=cupons_mensais,
+            name="Cupons Usados",
+            marker_color=PRIMARY
+        ))
+        
+        fig_progresso.update_layout(
+            title="Evolução Mensal de Cupons Usados",
+            xaxis_title="Mês",
+            yaxis_title="Quantidade de Cupons",
+            showlegend=True
+        )
+        
+        fig_progresso = style_fig(fig_progresso) 
+        st.plotly_chart(fig_progresso, use_container_width=True)
+        
+        # Métricas de diversificação
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            lojas_val = user_data["lojas_visitadas"].iloc[0].count(",") + 1 if user_data["lojas_visitadas"].iloc[0] != "[]" else 0
+            st.markdown(f'<div class="black-metric-label">🏪 Lojas Diferentes</div><div class="black-metric-value">{lojas_val}</div>', unsafe_allow_html=True)
+        with col2:
+            tipos_val = user_data["tipos_usados"].iloc[0].count(",") + 1 if user_data["tipos_usados"].iloc[0] != "[]" else 0
+            st.markdown(f'<div class="black-metric-label">🎯 Tipos de Cupom</div><div class="black-metric-value">{tipos_val}</div>', unsafe_allow_html=True)
+        with col3:
+            economia_media = total_economizado / cupons_usados if cupons_usados > 0 else 0
+            st.markdown(f'<div class="black-metric-label">💰 Economia Média por Cupom</div><div class="black-metric-value">R$ {economia_media:.2f}</div>', unsafe_allow_html=True)
+
+    with tab3:
+        st.subheader("🎯 Simulação Avançada")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Simulação Rápida**")
+            num_cupons_simular = st.slider("Número de cupons para simular", 1, 50, 10)
+            valor_medio_simular = st.slider("Valor médio por cupom (R$)", 10.0, 500.0, 100.0)
+            
+            if st.button("🚀 Executar Simulação", use_container_width=True):
+                # Simula vários cupons de uma vez
+                for i in range(num_cupons_simular):
+                    cupom_simulado = {
+                        "loja": f"Loja Simulada {i+1}",
+                        "tipo": np.random.choice(["Desconto", "Cashback", "Fidelidade"]),
+                        "valor": valor_medio_simular * np.random.uniform(0.5, 1.5),
+                        "local": "Simulação"
+                    }
+                    atualizar_usuario_gamificacao(email, cupom_simulado)
+                
+                st.success(f"✅ {num_cupons_simular} cupons simulados com sucesso!")
+                st.rerun()
+        
+        with col2:
+            st.markdown("**Calculadora de Progresso**")
+            cupons_desejados = st.number_input("Cupons para próximo nível", 
+                                             min_value=cupons_usados+1, 
+                                             max_value=100, 
+                                             value=min(cupons_usados+10, 100))
+            
+            if proximo_nivel_info:
+                cupons_necessarios = proximo_nivel_info["cupons_necessarios"] - cupons_usados
+                st.info(f"📊 Para **{proximo_nivel_info['nome']}**: mais **{cupons_necessarios}** cupons")
+                
+                cupons_por_semana = st.slider("Cupons por semana", 1, 20, 5)
+                semanas_necessarias = max(1, cupons_necessarios // cupons_por_semana) if cupons_por_semana > 0 else 0
+                st.markdown(f'<div class="black-metric-label">⏱️ Tempo estimado</div><div class="black-metric-value">{semanas_necessarias} semanas</div>', unsafe_allow_html=True)
+
+    with tab4:
+        st.subheader("🏆 Todas as Conquistas")
+        
+        conquistas_cols = st.columns(2)
+        
+        # Mostra todas as conquistas disponíveis
+        for idx, (conquista_id, conquista) in enumerate(gamificacao.conquistas.items()):
+            col_idx = idx % 2
+            desbloqueada = user_data[f"conquista_{conquista_id}"].iloc[0] if f"conquista_{conquista_id}" in user_data.columns else False
+            
+            with conquistas_cols[col_idx]:
+                bg_color = "#f0f8f0" if desbloqueada else "#f5f5f5"
+                border_color = "#4CAF50" if desbloqueada else "#e0e0e0"
+                icon_color = "#4CAF50" if desbloqueada else "#999"
+                
+                st.markdown(f"""
+                    <div style="background: {bg_color}; padding: 15px; border-radius: 10px; border: 2px solid {border_color}; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 24px; color: {icon_color};">{conquista['icone']}</span>
+                            <div>
+                                <div style="font-weight: bold; color: {'#000' if desbloqueada else '#666'};">{conquista['nome']}</div>
+                                <div style="font-size: 12px; color: {'#666' if desbloqueada else '#999'};">{conquista['descricao']}</div>
+                                <div style="font-size: 11px; color: #888; margin-top: 5px;">+{conquista['xp']} XP</div>
+                            </div>
+                        </div>
+                        {'<div style="text-align: right; color: #4CAF50; font-size: 12px;">✓ Desbloqueada</div>' if desbloqueada else '<div style="text-align: right; color: #999; font-size: 12px;">🔒 Bloqueada</div>'}
+                    </div>
+                """, unsafe_allow_html=True)
+
+    # Histórico de Usos
+    st.markdown("---")
+    st.subheader("📋 Histórico de Cupons")
+    if os.path.exists(CUPOM_USOS_PATH):
+        hist = pd.read_csv(CUPOM_USOS_PATH)
+        hist = hist[hist["email"] == email]
+        if not hist.empty:
+            hist["data"] = pd.to_datetime(hist["data"]).dt.strftime("%d/%m/%Y %H:%M")
+            hist["economia_estimada"] = hist["valor"] * 0.1  # 10% de economia
+            st.dataframe(
+                hist.sort_values("data", ascending=False).style.format({
+                    "valor": "R$ {:.2f}",
+                    "economia_estimada": "R$ {:.2f}"
+                }), 
+                use_container_width=True
+            )
+            
+            # Métricas resumidas do histórico
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown(f'''
+                    <div class="metric-box">
+                        <div class="black-metric-label">Total de Cupons</div>
+                        <div class="black-metric-value">{len(hist)}</div>
+                    </div>
+                ''', unsafe_allow_html=True)
+            with col2:
+                st.markdown(f'''
+                    <div class="metric-box">
+                        <div class="black-metric-label">Economia Total</div>
+                        <div class="black-metric-value">R$ {hist["economia_estimada"].sum():.2f}</div>
+                    </div>
+                ''', unsafe_allow_html=True)
+            with col3:
+                lojas_unicas = hist["loja"].nunique()
+                st.markdown(f'''
+                    <div class="metric-box">
+                        <div class="black-metric-label">Lojas Diferentes</div>
+                        <div class="black-metric-value">{lojas_unicas}</div>
+                    </div>
+                ''', unsafe_allow_html=True)
+        else:
+            st.info("Nenhum cupom registrado ainda.")
 
 def page_sobre():
     """
-    Página Sobre.
+    Página Sobre - mostra informações sobre a equipe do projeto e sobre o CupomGO
     """
     top_header()
     hero("👥 Sobre o CupomGO", "Conheça nossa plataforma, equipe e professores orientadores")
+
+    # Sobre o CupomGO
+    st.markdown("""
+    <div style="background-color: #f8f9fa; border-radius: 15px; padding: 30px; margin-bottom: 30px; 
+                border-left: 5px solid #0C2D6B; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <h2 style="color: #0C2D6B; margin-top: 0;">💳 Sobre o CupomGO</h2>
+        <p style="color: #333; font-size: 16px; line-height: 1.6;">
+        O <strong>CupomGO</strong> é uma plataforma inovadora de gestão e gamificação de cupons de desconto, 
+        desenvolvida para transformar a experiência de economia em uma jornada interativa e recompensadora. 
+        Nosso objetivo é conectar usuários a descontos exclusivos, enquanto oferecemos às empresas insights 
+        valiosos sobre o comportamento de consumo.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Tecnologia
+    st.markdown("---")
+    st.subheader("🛠️ Tecnologia")
     
-    st.info("""
-    🚧 **Página em Desenvolvimento**
+    tech_col1, tech_col2, tech_col3, tech_col4 = st.columns(4)
     
-    Esta página está sendo atualizada com informações completas sobre o projeto.
-    """)
+    with tech_col1:
+        st.markdown("""
+        <div style="text-align: center; padding: 15px;">
+            <div style="font-size: 36px; margin-bottom: 10px;">🎨</div>
+            <h5 style="color: #0C2D6B; margin: 0;">Streamlit</h5>
+            <p style="color: #666; font-size: 12px; margin: 5px 0 0 0;">
+            Interface Web
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with tech_col2:
+        st.markdown("""
+        <div style="text-align: center; padding: 15px;">
+            <div style="font-size: 36px; margin-bottom: 10px;">📊</div>
+            <h5 style="color: #0C2D6B; margin: 0;">Plotly</h5>
+            <p style="color: #666; font-size: 12px; margin: 5px 0 0 0;">
+            Visualizações
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with tech_col3:
+        st.markdown("""
+        <div style="text-align: center; padding: 15px;">
+            <div style="font-size: 36px; margin-bottom: 10px;">🐼</div>
+            <h5 style="color: #0C2D6B; margin: 0;">Pandas</h5>
+            <p style="color: #666; font-size: 12px; margin: 5px 0 0 0;">
+            Dados
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with tech_col4:
+        st.markdown("""
+        <div style="text-align: center; padding: 15px;">
+            <div style="font-size: 36px; margin-bottom: 10px;">🎯</div>
+            <h5 style="color: #0C2D6B; margin: 0;">Gamificação</h5>
+            <p style="color: #666; font-size: 12px; margin: 5px 0 0 0;">
+            Sistema Proprietário
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Integrantes do grupo
+    st.markdown("---")
+    st.subheader("🎓 Integrantes do Grupo")
+    
+    integrantes = [
+        "Carlos Roberto Santos Latorre",
+        "Felipe Lin", 
+        "Felipe Wakasa Klabunde",
+        "Stephany Aliyah Guimarães Eurípedes de Paula"
+    ]
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        for i in range(0, len(integrantes), 2):
+            st.markdown(f"""
+                <div style="background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; 
+                            border-left: 4px solid #0C2D6B; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="font-weight: bold; color: #0C2D6B;">👤 {integrantes[i]}</div>
+                </div>
+            """, unsafe_allow_html=True)
+    
+    with col2:
+        for i in range(1, len(integrantes), 2):
+            if i < len(integrantes):
+                st.markdown(f"""
+                    <div style="background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; 
+                                border-left: 4px solid #0C2D6B; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <div style="font-weight: bold; color: #0C2D6B;">👤 {integrantes[i]}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+    # Professores orientadores
+    st.markdown("---")
+    st.subheader("🏫 Professores Orientadores")
+    
+    professores = [
+        "Eduardo Savino Gomes",
+        "Lucy Mari Tabuti", 
+        "Mauricio Lopes Da Cunha",
+        "Rodnil da Silva Moreira Lisboa"
+    ]
+    
+    prof_col1, prof_col2 = st.columns(2)
+    
+    with prof_col1:
+        for i in range(0, len(professores), 2):
+            st.markdown(f"""
+                <div style="background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; 
+                            border-left: 4px solid #10b981; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="font-weight: bold; color: #10b981;">🎓 {professores[i]}</div>
+                </div>
+            """, unsafe_allow_html=True)
+    
+    with prof_col2:
+        for i in range(1, len(professores), 2):
+            if i < len(professores):
+                st.markdown(f"""
+                    <div style="background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; 
+                                border-left: 4px solid #10b981; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <div style="font-weight: bold; color: #10b981;">🎓 {professores[i]}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style="text-align: center; color: #666; padding: 20px;">
+        <p>💡 <strong>CupomGO</strong> - Transformando economia em experiência 🎮</p>
+      
+    </div>
+    """, unsafe_allow_html=True)
 
 # ---------------- Estado da Aplicação ----------------
 # Inicializa o estado da aplicação se não existir
+# Think of this as the app's memory - it remembers things between interactions
 if "auth" not in st.session_state: 
-    st.session_state.auth = False
+    st.session_state.auth = False  # Whether user is logged in
 if "auth_mode" not in st.session_state: 
-    st.session_state.auth_mode = "login"
+    st.session_state.auth_mode = "login"  # Current auth screen (login/signup)
 if "user_email" not in st.session_state: 
-    st.session_state.user_email = None
+    st.session_state.user_email = None  # Email of logged in user
 if "page" not in st.session_state: 
-    st.session_state.page = "home"
-if "drill_down" not in st.session_state:
-    st.session_state.drill_down = None
+    st.session_state.page = "home"  # Current page being displayed
 
-# ---------------- Roteamento Principal Atualizado ----------------
+# ---------------- Roteamento Principal ----------------
 def main():
     """
-    Função principal atualizada com páginas interativas.
+    Função principal que controla toda a aplicação.
+    Decide o que mostrar baseado no estado do usuário (logado ou não).
     """
     if not st.session_state.auth:
+        # Usuário não está logado - mostra telas de autenticação
         if st.session_state.auth_mode == "login":
             login_screen()
         else:
             signup_screen()
     else:
+        # Usuário está logado - carrega dados e mostra o dashboard
         tx = transacoes if not transacoes.empty else pd.DataFrame()
         stores = lojas if not lojas.empty else pd.DataFrame()
         sidebar_nav()
         page = st.session_state.get("page", "home")
         
-        # Roteamento atualizado com versões interativas
+        # Roteamento para as diferentes páginas
+        # Think of this as a TV remote - each button goes to a different channel
         if page == "home": 
             page_home(tx, stores)
         elif page == "kpis": 
-            page_kpis_interativa(tx)  # Versão interativa
+            page_kpis(tx)
         elif page == "tendencias":
-            page_tendencias_interativa(tx)  # Versão interativa
+            page_tendencias(tx)
         elif page == "fin": 
             page_financeiro(tx)
         elif page == "eco": 
@@ -1882,6 +2724,6 @@ def main():
         elif page == "sobre":
             page_sobre()
 
-# Ponto de entrada
+# Ponto de entrada da aplicação
 if __name__ == "__main__":
     main()
