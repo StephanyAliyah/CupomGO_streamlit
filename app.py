@@ -1,4 +1,3 @@
-Retire de todas as páginas o item para baixar o "CSV" e coloque os dados no gráfico do  Performance CFO - Financeiro na página Indicadores Executivos, Na página Finaceiro melhore os gráficos e coloque eles em linha, barra etc mas melhore eles, coloque alguma interatividade na aba Evolução Anual na pagina Painel Economico: # === CONFIGURAÇÃO DA PÁGINA DEVE SER O PRIMEIRO COMANDO ===
 import streamlit as st
 
 # Configuração da página que aparece na aba do navegador - DEVE SER O PRIMEIRO COMANDO
