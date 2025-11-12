@@ -914,7 +914,7 @@ def top_header():
 
 def hero(title, sub=""):
     """
-    Cria um título grande e bonito para as páginas.
+    Cria um título grande e bonito para las páginas.
     Chamamos de "hero" porque é a primeira coisa que o usuário vê.
     """
     st.markdown(
@@ -1421,96 +1421,145 @@ def page_kpis(tx):
     with tab3:
         st.subheader("💰 Performance CFO - Receita e ROI")
 
-        dcol = get("data","data_captura"); vcol = get("valor_compra","valor"); scol = get("nome_loja","loja")
+        # CORREÇÃO: Busca flexível por colunas de valor e loja
+        dcol = get("data", "data_captura")
         
-        # CORREÇÃO: Verificação mais flexível das colunas
-        colunas_necessarias = [dcol, vcol, scol]
-        colunas_disponiveis = [c for c in colunas_necessarias if c and c in df.columns]
+        # Busca por colunas de valor (tenta várias possibilidades)
+        vcol = None
+        possible_value_cols = ['valor_compra', 'valor', 'valor_cupom', 'valor_transacao', 'total']
+        for col in possible_value_cols:
+            if col in df.columns:
+                vcol = col
+                break
         
-        if len(colunas_disponiveis) < 2:  # Pelo menos data e valor são essenciais
-            st.warning("Dados insuficientes para CFO. Colunas necessárias não encontradas.")
-            st.info(f"Colunas encontradas: data='{dcol}', valor='{vcol}', loja='{scol}'")
-            st.info(f"Colunas disponíveis no dataset: {list(df.columns)}")
-        else:
-            c1, c2, c3 = st.columns(3)
-            topN = c1.slider("Top N lojas por Receita", 5, 20, 10, key="cfo_topn")
-            roi_mode = c2.selectbox("Cálculo de ROI", ["Simplificado (35% investimento)", "Detalhado (colunas de custo/invest)"], index=0, key="cfo_roi")
-            sort_by = c3.selectbox("Ordenar por", ["Receita","ROI"], index=0, key="cfo_sort")
+        # Busca por colunas de loja (tenta várias possibilidades)
+        scol = None
+        possible_store_cols = ['nome_loja', 'loja', 'estabelecimento', 'nome_estabelecimento', 'store']
+        for col in possible_store_cols:
+            if col in df.columns:
+                scol = col
+                break
 
-            # CORREÇÃO: Cria dados para o gráfico mesmo com colunas limitadas
-            if vcol and vcol in df.columns and scol and scol in df.columns:
-                # Agrupa por loja
-                agg = df.groupby(scol)[vcol].agg(['sum','count']).reset_index().rename(columns={'sum':'Receita','count':'Transacoes'})
-                
-                # Calcula ROI simplificado
-                agg["Investimento"] = agg["Receita"] * 0.35
-                agg["ROI"] = ((agg["Receita"] - agg["Investimento"]) / agg["Investimento"] * 100).replace([np.inf, -np.inf], np.nan).fillna(0)
-                
-                # Ordena e seleciona top N
-                agg = agg.sort_values(sort_by, ascending=False).head(topN)
+        st.info(f"Colunas identificadas: Data='{dcol}', Valor='{vcol}', Loja='{scol}'")
 
-                # Mostra dados detalhados
-                st.markdown("**📊 Dados Detalhados das Lojas (Top 10)**")
-                
-                # Formata os dados para exibição
-                display_data = agg.copy()
-                display_data["Receita"] = display_data["Receita"].apply(lambda x: f"R$ {x:,.2f}")
-                display_data["Investimento"] = display_data["Investimento"].apply(lambda x: f"R$ {x:,.2f}")
-                display_data["ROI"] = display_data["ROI"].apply(lambda x: f"{x:.2f}%")
-                display_data["Transacoes"] = display_data["Transacoes"].apply(lambda x: f"{x:,}")
-                
-                # Mostra a tabela com os dados
-                st.dataframe(
-                    display_data,
-                    column_config={
-                        scol: "Loja",
-                        "Receita": "Receita Total",
-                        "Transacoes": "Transações",
-                        "Investimento": "Investimento",
-                        "ROI": "ROI (%)"
-                    },
-                    use_container_width=True,
-                    hide_index=True
-                )
+        if not vcol:
+            st.error("""
+            ❌ Não foi possível encontrar uma coluna de valor nos dados.
+            
+            **Colunas disponíveis no dataset:**
+            """)
+            st.write(list(df.columns))
+            st.info("""
+            **Solução:**
+            - Verifique se seus dados contêm uma coluna de valor (como 'valor_compra', 'valor', etc.)
+            - Ou use dados de exemplo clicando no botão abaixo
+            """)
+            
+            if st.button("🔄 Usar Dados de Exemplo para CFO", key="cfo_example"):
+                df_example = generate_example_data(num_rows=1000)
+                df = df_example.copy()
+                vcol = 'valor_compra'
+                scol = 'nome_loja'
+                st.success("Dados de exemplo carregados! Atualizando gráfico...")
+                st.rerun()
+            return
 
-                # CORREÇÃO: Cria gráfico mesmo com dados limitados
-                fig_cfo = go.Figure()
-                fig_cfo.add_trace(go.Bar(
+        # Se não encontrou coluna de loja, cria uma genérica
+        if not scol:
+            st.warning("Coluna de loja não encontrada. Usando 'Loja Genérica'.")
+            df['Loja_Generica'] = 'Loja Única'
+            scol = 'Loja_Generica'
+
+        c1, c2, c3 = st.columns(3)
+        topN = c1.slider("Top N lojas por Receita", 5, 20, 10, key="cfo_topn")
+        roi_mode = c2.selectbox("Cálculo de ROI", ["Simplificado (35% investimento)", "Detalhado (colunas de custo/invest)"], index=0, key="cfo_roi")
+        sort_by = c3.selectbox("Ordenar por", ["Receita","ROI"], index=0, key="cfo_sort")
+
+        # CORREÇÃO: Cria dados para o gráfico mesmo com colunas limitadas
+        try:
+            # Agrupa por loja
+            agg = df.groupby(scol)[vcol].agg(['sum','count']).reset_index().rename(columns={'sum':'Receita','count':'Transacoes'})
+            
+            # Calcula ROI simplificado
+            agg["Investimento"] = agg["Receita"] * 0.35
+            agg["ROI"] = ((agg["Receita"] - agg["Investimento"]) / agg["Investimento"] * 100).replace([np.inf, -np.inf], np.nan).fillna(0)
+            
+            # Ordena e seleciona top N
+            agg = agg.sort_values(sort_by, ascending=False).head(topN)
+
+            # Mostra dados detalhados
+            st.markdown("**📊 Dados Detalhados das Lojas (Top 10)**")
+            
+            # Formata os dados para exibição
+            display_data = agg.copy()
+            display_data["Receita"] = display_data["Receita"].apply(lambda x: f"R$ {x:,.2f}")
+            display_data["Investimento"] = display_data["Investimento"].apply(lambda x: f"R$ {x:,.2f}")
+            display_data["ROI"] = display_data["ROI"].apply(lambda x: f"{x:.2f}%")
+            display_data["Transacoes"] = display_data["Transacoes"].apply(lambda x: f"{x:,}")
+            
+            # Mostra a tabela com os dados
+            st.dataframe(
+                display_data,
+                column_config={
+                    scol: "Loja",
+                    "Receita": "Receita Total",
+                    "Transacoes": "Transações",
+                    "Investimento": "Investimento",
+                    "ROI": "ROI (%)"
+                },
+                use_container_width=True,
+                hide_index=True
+            )
+
+            # CORREÇÃO: Cria gráfico mesmo com dados limitados
+            fig_cfo = go.Figure()
+            fig_cfo.add_trace(go.Bar(
+                x=agg[scol].astype(str), 
+                y=agg["Receita"], 
+                name="Receita (R$)", 
+                marker_color=PRIMARY,
+                hovertemplate="Loja: %{x}<br>Receita: R$ %{y:,.2f}<extra></extra>"
+            ))
+            
+            # Adiciona ROI apenas se os valores forem válidos
+            if not agg["ROI"].isna().all() and agg["ROI"].abs().max() > 0:
+                fig_cfo.add_trace(go.Scatter(
                     x=agg[scol].astype(str), 
-                    y=agg["Receita"], 
-                    name="Receita (R$)", 
-                    marker_color=PRIMARY,
-                    hovertemplate="Loja: %{x}<br>Receita: R$ %{y:,.2f}<extra></extra>"
+                    y=agg["ROI"], 
+                    name="ROI (%)", 
+                    yaxis="y2",
+                    mode="lines+markers", 
+                    hovertemplate="Loja: %{x}<br>ROI: %{y:.2f}%<extra></extra>"
                 ))
-                
-                # Adiciona ROI apenas se os valores forem válidos
-                if not agg["ROI"].isna().all() and agg["ROI"].abs().max() > 0:
-                    fig_cfo.add_trace(go.Scatter(
-                        x=agg[scol].astype(str), 
-                        y=agg["ROI"], 
-                        name="ROI (%)", 
-                        yaxis="y2",
-                        mode="lines+markers", 
-                        hovertemplate="Loja: %{x}<br>ROI: %{y:.2f}%<extra></extra>"
-                    ))
-                
-                fig_cfo.update_layout(
-                    title="Receita e ROI por Loja",
-                    xaxis_title="Loja",
-                    yaxis=dict(title="Receita (R$)"),
-                    yaxis2=dict(
-                        overlaying="y", 
-                        side="right", 
-                        title="ROI (%)",
-                        showgrid=False  # Remove grid do segundo eixo para melhor visualização
-                    ) if not agg["ROI"].isna().all() else None
-                )
-                
-                fig_cfo = style_fig(fig_cfo, y_fmt=",.2f")
-                st.plotly_chart(fig_cfo, use_container_width=True)
-                
-            else:
-                st.error("Não foi possível gerar o gráfico. Colunas de valor ou loja não encontradas.")
+            
+            fig_cfo.update_layout(
+                title="Receita e ROI por Loja",
+                xaxis_title="Loja",
+                yaxis=dict(title="Receita (R$)"),
+                yaxis2=dict(
+                    overlaying="y", 
+                    side="right", 
+                    title="ROI (%)",
+                    showgrid=False  # Remove grid do segundo eixo para melhor visualização
+                ) if not agg["ROI"].isna().all() else None
+            )
+            
+            fig_cfo = style_fig(fig_cfo, y_fmt=",.2f")
+            st.plotly_chart(fig_cfo, use_container_width=True)
+            
+        except Exception as e:
+            st.error(f"Erro ao gerar gráfico CFO: {e}")
+            st.info("""
+            **Para resolver este problema:**
+            1. Verifique se seus dados contêm colunas numéricas para valores
+            2. Certifique-se de que há dados suficientes para análise
+            3. Tente usar dados de exemplo clicando no botão abaixo
+            """)
+            
+            if st.button("🔄 Usar Dados de Exemplo", key="cfo_fallback"):
+                df_example = generate_example_data(num_rows=1000)
+                df = df_example.copy()
+                st.rerun()
 
 def page_tendencias(tx):
     """
