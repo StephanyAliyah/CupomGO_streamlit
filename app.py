@@ -947,28 +947,6 @@ NAV_ITEMS = [
     ("Sobre", "sobre"),
 ]
 
-def diagnosticar_colunas():
-    """Mostra quais colunas existem em cada dataframe"""
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🔍 Diagnóstico de Colunas")
-    
-    dataframes = {
-        "Transações": df_transacoes,
-        "Lojas": df_lojas, 
-        "Economia": df_economia,
-        "Usuários": usuarios,
-        "Cupom Usos": cupom_usos,
-        "Conquista": conquista
-    }
-    
-    for nome, df in dataframes.items():
-        if not df.empty:
-            with st.sidebar.expander(f"📊 {nome} ({len(df.columns)} colunas)"):
-                st.write(f"Colunas: {list(df.columns)}")
-                if not df.empty:
-                    st.write(f"Primeiras linhas:")
-                    st.dataframe(df.head(2), use_container_width=True)
-
 def sidebar_nav():
     """
     Cria o menu lateral de navegação.
@@ -2901,8 +2879,7 @@ def main():
         stores = lojas if not lojas.empty else pd.DataFrame()
         sidebar_nav()
         
-        # ADICIONE ESTA LINHA para ver as colunas disponíveis
-        diagnosticar_colunas()
+        # REMOVIDO: diagnosticar_colunas() - removido conforme solicitado
         
         page = st.session_state.get("page", "home")
         
