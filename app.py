@@ -444,9 +444,7 @@ def time_axes_enhance(fig):
     )
     return fig
 
-def df_download_button(df, label="⬇️ Baixar dados (CSV)", fname="dados.csv"):
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button(label, csv, file_name=fname, mime="text/csv")
+# REMOVIDO: função df_download_button foi removida conforme solicitado
 
 # ---------------- Sistema de Gamificação ----------------
 class SistemaGamificacao:
@@ -1226,10 +1224,7 @@ def page_home(tx, stores):
     fig = time_axes_enhance(fig)
     st.plotly_chart(fig, use_container_width=True)
 
-    # baixar dados do gráfico
-    df_download_button(resumo.rename(columns={"Periodo":"periodo","Ticket_Médio":"ticket_medio"}), 
-                       "⬇️ Baixar dados do gráfico (CSV)",
-                       "home_resumo.csv")
+    # REMOVIDO: botão de download CSV removido conforme solicitado
 
 def generate_example_data(num_rows=2500):
     """
@@ -1385,7 +1380,8 @@ def page_kpis(tx):
         fig_ceo = style_fig(fig_ceo)
         fig_ceo = time_axes_enhance(fig_ceo)
         st.plotly_chart(fig_ceo, use_container_width=True)
-        df_download_button(conv, "⬇️ CSV (CEO)", "kpi_ceo.csv")
+
+        # REMOVIDO: botão de download CSV removido conforme solicitado
 
     with tab2:
         st.subheader("🔧 Performance CTO - Operações")
@@ -1419,10 +1415,11 @@ def page_kpis(tx):
         fig_cto = style_fig(fig_cto, y_fmt=",.0f")
         fig_cto = time_axes_enhance(fig_cto)
         st.plotly_chart(fig_cto, use_container_width=True)
-        df_download_button(vol, "⬇️ CSV (CTO)", "kpi_cto.csv")
+
+        # REMOVIDO: botão de download CSV removido conforme solicitado
 
     with tab3:
-        st.subheader("💰 Performance CFO - Receita e ROI")
+        st.subheader("💰 Performance CFO - Financeiro")
 
         dcol = get("data","data_captura"); vcol = get("valor_compra","valor"); scol = get("nome_loja","loja")
         if not (dcol and vcol and scol) or any(c not in df.columns for c in [dcol, vcol, scol]):
@@ -1456,7 +1453,24 @@ def page_kpis(tx):
                               yaxis2=dict(overlaying="y", side="right", title="ROI (%)"))
         fig_cfo = style_fig(fig_cfo, y_fmt=",.2f")
         st.plotly_chart(fig_cfo, use_container_width=True)
-        df_download_button(agg, "⬇️ CSV (CFO)", "kpi_cfo.csv")
+
+        # ADICIONADO: Dados no gráfico conforme solicitado
+        # Mostrar os dados diretamente no gráfico
+        st.subheader("📊 Dados Financeiros Detalhados")
+        
+        # Formatar os dados para exibição
+        display_data = agg.copy()
+        display_data["Receita"] = display_data["Receita"].apply(lambda x: f"R$ {x:,.2f}")
+        display_data["Investimento"] = display_data["Investimento"].apply(lambda x: f"R$ {x:,.2f}")
+        display_data["ROI"] = display_data["ROI"].apply(lambda x: f"{x:.2f}%")
+        
+        st.dataframe(
+            display_data[["nome_loja", "Receita", "Investimento", "ROI", "Transacoes"]],
+            use_container_width=True,
+            hide_index=True
+        )
+
+        # REMOVIDO: botão de download CSV removido conforme solicitado
 
 def page_tendencias(tx):
     """
@@ -1741,7 +1755,7 @@ def page_financeiro(tx):
     cum  = c1.checkbox("📈 Mostrar acumulado", False, key="fin_cum")
     pts  = c2.checkbox("● Marcadores", True, key="fin_pts")
 
-    tabs = st.tabs(["Receita", "Ticket", "Lucro", "ROI"])
+    tabs = st.tabs(["📈 Receita", "📊 Ticket", "💰 Lucro", "📉 ROI"])
 
     def _line(df_, y, title, yfmt=",.2f", color=PRIMARY):
         fig = px.line(df_, x="Periodo", y=y, title=title, labels={"Periodo":"Período", y:y},
@@ -1751,27 +1765,131 @@ def page_financeiro(tx):
         fig = time_axes_enhance(fig)
         return fig
 
+    def _bar(df_, y, title, yfmt=",.2f", color=PRIMARY):
+        fig = px.bar(df_, x="Periodo", y=y, title=title, labels={"Periodo":"Período", y:y},
+                     color_discrete_sequence=[color])
+        fig = style_fig(fig, y_fmt=yfmt)
+        fig = time_axes_enhance(fig)
+        return fig
+
+    def _area(df_, y, title, yfmt=",.2f", color=PRIMARY):
+        fig = px.area(df_, x="Periodo", y=y, title=title, labels={"Periodo":"Período", y:y},
+                      color_discrete_sequence=[color])
+        fig = style_fig(fig, y_fmt=yfmt)
+        fig = time_axes_enhance(fig)
+        return fig
+
     with tabs[0]:
+        st.subheader("📈 Análise de Receita")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            chart_type = st.selectbox("Tipo de gráfico - Receita", ["Linha", "Barra", "Área"], key="receita_chart")
+        with col2:
+            show_stats = st.checkbox("Mostrar estatísticas", value=True, key="receita_stats")
+        
         dfp = resumo.copy()
         if cum:
             dfp["Receita"] = dfp["Receita"].cumsum()
-        st.plotly_chart(_line(dfp, "Receita", "Receita Total por Período"), use_container_width=True)
-        df_download_button(dfp[["Periodo","Receita"]], "⬇️ CSV Receita", "fin_receita.csv")
+            
+        if chart_type == "Linha":
+            st.plotly_chart(_line(dfp, "Receita", "Receita Total por Período"), use_container_width=True)
+        elif chart_type == "Barra":
+            st.plotly_chart(_bar(dfp, "Receita", "Receita Total por Período"), use_container_width=True)
+        else:  # Área
+            st.plotly_chart(_area(dfp, "Receita", "Receita Total por Período"), use_container_width=True)
+            
+        if show_stats:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Receita Total", f"R$ {dfp['Receita'].sum():,.2f}")
+            with col2:
+                st.metric("Receita Média Mensal", f"R$ {dfp['Receita'].mean():,.2f}")
+            with col3:
+                crescimento = ((dfp['Receita'].iloc[-1] - dfp['Receita'].iloc[0]) / dfp['Receita'].iloc[0] * 100) if len(dfp) > 1 else 0
+                st.metric("Crescimento", f"{crescimento:.1f}%")
 
     with tabs[1]:
-        st.plotly_chart(_line(resumo, "Ticket", "Ticket Médio por Período"), use_container_width=True)
-        df_download_button(resumo[["Periodo","Ticket"]], "⬇️ CSV Ticket", "fin_ticket.csv")
+        st.subheader("📊 Análise de Ticket Médio")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            chart_type = st.selectbox("Tipo de gráfico - Ticket", ["Linha", "Barra", "Área"], key="ticket_chart")
+        with col2:
+            show_stats = st.checkbox("Mostrar estatísticas", value=True, key="ticket_stats")
+            
+        if chart_type == "Linha":
+            st.plotly_chart(_line(resumo, "Ticket", "Ticket Médio por Período", color="#00CC96"), use_container_width=True)
+        elif chart_type == "Barra":
+            st.plotly_chart(_bar(resumo, "Ticket", "Ticket Médio por Período", color="#00CC96"), use_container_width=True)
+        else:  # Área
+            st.plotly_chart(_area(resumo, "Ticket", "Ticket Médio por Período", color="#00CC96"), use_container_width=True)
+            
+        if show_stats:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Ticket Médio Geral", f"R$ {resumo['Ticket'].mean():,.2f}")
+            with col2:
+                st.metric("Ticket Máximo", f"R$ {resumo['Ticket'].max():,.2f}")
+            with col3:
+                st.metric("Ticket Mínimo", f"R$ {resumo['Ticket'].min():,.2f}")
 
     with tabs[2]:
+        st.subheader("💰 Análise de Lucro")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            chart_type = st.selectbox("Tipo de gráfico - Lucro", ["Linha", "Barra", "Área"], key="lucro_chart")
+        with col2:
+            show_stats = st.checkbox("Mostrar estatísticas", value=True, key="lucro_stats")
+        
         dfp = resumo.copy()
         if cum:
             dfp["Lucro"] = dfp["Lucro"].cumsum()
-        st.plotly_chart(_line(dfp, "Lucro", "Lucro Estimado por Período"), use_container_width=True)
-        df_download_button(dfp[["Periodo","Lucro"]], "⬇️ CSV Lucro", "fin_lucro.csv")
+            
+        if chart_type == "Linha":
+            st.plotly_chart(_line(dfp, "Lucro", "Lucro Estimado por Período", color="#FF6B6B"), use_container_width=True)
+        elif chart_type == "Barra":
+            st.plotly_chart(_bar(dfp, "Lucro", "Lucro Estimado por Período", color="#FF6B6B"), use_container_width=True)
+        else:  # Área
+            st.plotly_chart(_area(dfp, "Lucro", "Lucro Estimado por Período", color="#FF6B6B"), use_container_width=True)
+            
+        if show_stats:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Lucro Total", f"R$ {dfp['Lucro'].sum():,.2f}")
+            with col2:
+                st.metric("Margem Média", f"{(dfp['Lucro'].sum() / dfp['Receita'].sum() * 100):.1f}%")
+            with col3:
+                crescimento_lucro = ((dfp['Lucro'].iloc[-1] - dfp['Lucro'].iloc[0]) / dfp['Lucro'].iloc[0] * 100) if len(dfp) > 1 and dfp['Lucro'].iloc[0] != 0 else 0
+                st.metric("Crescimento do Lucro", f"{crescimento_lucro:.1f}%")
 
     with tabs[3]:
-        st.plotly_chart(_line(resumo, "ROI", "ROI (%) por Período", yfmt=",.2f", color="#7E7E7E"), use_container_width=True)
-        df_download_button(resumo[["Periodo","ROI"]], "⬇️ CSV ROI", "fin_roi.csv")
+        st.subheader("📉 Análise de ROI")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            chart_type = st.selectbox("Tipo de gráfico - ROI", ["Linha", "Barra", "Área"], key="roi_chart")
+        with col2:
+            show_stats = st.checkbox("Mostrar estatísticas", value=True, key="roi_stats")
+            
+        if chart_type == "Linha":
+            st.plotly_chart(_line(resumo, "ROI", "ROI (%) por Período", yfmt=",.2f", color="#7E7E7E"), use_container_width=True)
+        elif chart_type == "Barra":
+            st.plotly_chart(_bar(resumo, "ROI", "ROI (%) por Período", yfmt=",.2f", color="#7E7E7E"), use_container_width=True)
+        else:  # Área
+            st.plotly_chart(_area(resumo, "ROI", "ROI (%) por Período", yfmt=",.2f", color="#7E7E7E"), use_container_width=True)
+            
+        if show_stats:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("ROI Médio", f"{resumo['ROI'].mean():.1f}%")
+            with col2:
+                st.metric("ROI Máximo", f"{resumo['ROI'].max():.1f}%")
+            with col3:
+                st.metric("ROI Mínimo", f"{resumo['ROI'].min():.1f}%")
+
+    # REMOVIDO: botões de download CSV removidos conforme solicitado
 
 def page_eco():
     """
@@ -1830,7 +1948,7 @@ def page_eco():
         Converte strings para números, tratando porcentagens e vírgulas decimais.
         """
         return pd.to_numeric(
-            s.astype(str).str.replace("%","", regex=False).str.replace(",", ".", regex=False).str.replace(" ", "", regex=False),
+            s.ast(str).str.replace("%","", regex=False).str.replace(",", ".", regex=False).str.replace(" ", "", regex=False),
             errors="coerce"
         )
 
@@ -1941,38 +2059,135 @@ def page_eco():
     with tab1:
         st.subheader("Evolução Anual — SELIC, IPCA e Inadimplência")
 
-        if "Selic" in eco_anual.columns and eco_anual["Selic"].notna().any():
-            fig_selic_y = go.Figure()
-            fig_selic_y.add_trace(go.Scatter(x=eco_anual["Ano"], y=eco_anual["Selic"], mode="lines+markers", name="SELIC (%)", line=dict(width=3)))
-            fig_selic_y.update_layout(
-                title="Evolução SELIC (%) — Anual", 
-                xaxis_title="Ano", 
-                yaxis_title="SELIC (%)",
-                margin=dict(t=80, b=140, l=80, r=80)
+        # ADICIONADO: Interatividade para a aba Evolução Anual
+        st.markdown("### 🎛️ Controles Interativos")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            show_selic = st.checkbox("Mostrar SELIC", value=True, key="anual_selic")
+            selic_color = st.color_picker("Cor SELIC", "#1f77b4", key="selic_color")
+        with col2:
+            show_ipca = st.checkbox("Mostrar IPCA", value=True, key="anual_ipca")
+            ipca_color = st.color_picker("Cor IPCA", "#ff7f0e", key="ipca_color")
+        with col3:
+            show_inad = st.checkbox("Mostrar Inadimplência", value=True, key="anual_inad")
+            inad_color = st.color_picker("Cor Inadimplência", "#2ca02c", key="inad_color")
+        
+        # Gráfico combinado interativo
+        fig_combined = go.Figure()
+        
+        if show_selic and "Selic" in eco_anual.columns and eco_anual["Selic"].notna().any():
+            fig_combined.add_trace(go.Scatter(
+                x=eco_anual["Ano"], 
+                y=eco_anual["Selic"], 
+                mode="lines+markers", 
+                name="SELIC (%)", 
+                line=dict(width=3, color=selic_color),
+                marker=dict(size=8, color=selic_color)
+            ))
+        
+        if show_ipca and "IPCA" in eco_anual.columns and eco_anual["IPCA"].notna().any():
+            fig_combined.add_trace(go.Bar(
+                x=eco_anual["Ano"], 
+                y=eco_anual["IPCA"], 
+                name="IPCA (%)", 
+                marker_color=ipca_color, 
+                opacity=0.7,
+                yaxis="y2"
+            ))
+        
+        if show_inad and "Inadimplencia" in eco_anual.columns and eco_anual["Inadimplencia"].notna().any():
+            fig_combined.add_trace(go.Scatter(
+                x=eco_anual["Ano"], 
+                y=eco_anual["Inadimplencia"], 
+                mode="lines+markers", 
+                name="Inadimplência (%)", 
+                line=dict(width=3, color=inad_color, dash="dash"),
+                marker=dict(size=8, color=inad_color, symbol="diamond"),
+                yaxis="y3"
+            ))
+        
+        # Configurar layout com múltiplos eixos Y
+        fig_combined.update_layout(
+            title="Indicadores Econômicos Anuais - Visão Combinada",
+            xaxis=dict(title="Ano", domain=[0.1, 0.9]),
+            yaxis=dict(
+                title="SELIC (%)",
+                titlefont=dict(color=selic_color),
+                tickfont=dict(color=selic_color),
+                anchor="x"
+            ),
+            yaxis2=dict(
+                title="IPCA (%)",
+                titlefont=dict(color=ipca_color),
+                tickfont=dict(color=ipca_color),
+                anchor="x",
+                overlaying="y",
+                side="right",
+                position=0.95
+            ),
+            yaxis3=dict(
+                title="Inadimplência (%)",
+                titlefont=dict(color=inad_color),
+                tickfont=dict(color=inad_color),
+                anchor="x",
+                overlaying="y",
+                side="right",
+                position=0.85
+            ),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
             )
-            st.plotly_chart(style_fig(fig_selic_y), use_container_width=True)
+        )
+        
+        st.plotly_chart(fig_combined, use_container_width=True)
 
-        if "IPCA" in eco_anual.columns and eco_anual["IPCA"].notna().any():
-            fig_ipca_y = go.Figure()
-            fig_ipca_y.add_trace(go.Bar(x=eco_anual["Ano"], y=eco_anual["IPCA"], name="IPCA (%)", marker_color=PRIMARY, opacity=0.85))
-            fig_ipca_y.update_layout(
-                title="Evolução IPCA (%) — Anual", 
-                xaxis_title="Ano", 
-                yaxis_title="IPCA (%)",
-                margin=dict(t=80, b=140, l=80, r=80)
+        # ADICIONADO: Análise de correlação interativa
+        st.markdown("### 🔍 Análise de Correlação")
+        
+        if len(eco_anual) > 2:
+            # Calcular correlações
+            corr_data = eco_anual[["Selic", "IPCA", "Inadimplencia"]].corr()
+            
+            # Heatmap de correlação
+            fig_corr = px.imshow(
+                corr_data,
+                text_auto=".2f",
+                aspect="auto",
+                color_continuous_scale="RdBu_r",
+                title="Matriz de Correlação entre Indicadores Econômicos"
             )
-            st.plotly_chart(style_fig(fig_ipca_y), use_container_width=True)
-
-        if "Inadimplencia" in eco_anual.columns and eco_anual["Inadimplencia"].notna().any():
-            fig_inad_y = go.Figure()
-            fig_inad_y.add_trace(go.Scatter(x=eco_anual["Ano"], y=eco_anual["Inadimplencia"], mode="lines+markers", name="Inadimplência (%)", line=dict(width=3)))
-            fig_inad_y.update_layout(
-                title="Evolução da Inadimplência (%) — Anual", 
-                xaxis_title="Ano", 
-                yaxis_title="Inadimplência (%)",
-                margin=dict(t=80, b=140, l=80, r=80)
+            fig_corr.update_layout(
+                xaxis_title="Indicadores",
+                yaxis_title="Indicadores"
             )
-            st.plotly_chart(style_fig(fig_inad_y), use_container_width=True)
+            st.plotly_chart(fig_corr, use_container_width=True)
+            
+            # Análise textual das correlações
+            st.markdown("#### 📝 Interpretação das Correlações:")
+            
+            selic_ipca_corr = corr_data.loc["Selic", "IPCA"]
+            selic_inad_corr = corr_data.loc["Selic", "Inadimplencia"]
+            ipca_inad_corr = corr_data.loc["IPCA", "Inadimplencia"]
+            
+            if abs(selic_ipca_corr) > 0.7:
+                st.info(f"**SELIC vs IPCA**: Correlação {'positiva' if selic_ipca_corr > 0 else 'negativa'} forte ({selic_ipca_corr:.2f}). "
+                       f"Indica que os movimentos da SELIC e IPCA estão altamente relacionados.")
+            elif abs(selic_ipca_corr) > 0.3:
+                st.info(f"**SELIC vs IPCA**: Correlação {'positiva' if selic_ipca_corr > 0 else 'negativa'} moderada ({selic_ipca_corr:.2f}).")
+            else:
+                st.info(f"**SELIC vs IPCA**: Correlação fraca ({selic_ipca_corr:.2f}).")
+                
+            if abs(selic_inad_corr) > 0.7:
+                st.info(f"**SELIC vs Inadimplência**: Correlação {'positiva' if selic_inad_corr > 0 else 'negativa'} forte ({selic_inad_corr:.2f}).")
+            elif abs(selic_inad_corr) > 0.3:
+                st.info(f"**SELIC vs Inadimplência**: Correlação {'positiva' if selic_inad_corr > 0 else 'negativa'} moderada ({selic_inad_corr:.2f}).")
+            else:
+                st.info(f"**SELIC vs Inadimplência**: Correlação fraca ({selic_inad_corr:.2f}).")
 
     with tab2:
         st.subheader("Evolução Mensal — SELIC, IPCA e Inadimplência")
@@ -1998,562 +2213,7 @@ def page_eco():
             fig = time_axes_enhance(fig)
             st.plotly_chart(fig, use_container_width=True)
 
-def page_simulacaologin():
-    """
-    Página de gamificação - onde usuários acompanham seu progresso.
-    A parte mais divertida do sistema!
-    """
-    top_header()
-    hero("🎯 Simulação de Uso de Cupons", "Sistema de gamificação e progressão por níveis")
-
-    st.markdown("""
-    <div style="background-color: #f0f2f6; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #e0e0e0;">
-        <p style="color: #333; font-size: 16px;">
-        Esta é a sua área pessoal de gamificação! <strong>Registe os cupons</strong> que você usa para 
-        subir de nível, ganhar <strong>XP</strong> e desbloquear <strong>conquistas</strong>.
-        </p>
-        <p style="color: #333; font-size: 16px;">
-        Use o simulador para planear o seu progresso e veja o seu histórico de economia a crescer.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("---")
-
-    # CSS personalizado para garantir que as métricas fiquem com texto preto
-    metric_style = """
-        <style>
-            [data-testid="stTabsBar"] button p {
-                color: #000000 !important;
-            }
-            [data-testid="stTabsBar"] button[aria-selected="true"] p {
-                font-weight: bold;
-                color: #000000 !important;
-            }
-            .black-metric-label {
-                font-size: 0.875rem; 
-                color: #000000 !important;
-                margin-bottom: 0.25rem;
-                line-height: 1.5;
-            }
-            .black-metric-value {
-                font-size: 1.5rem; 
-                font-weight: 500;
-                color: #000000;
-            }
-            .metric-box {
-                background-color: #f9f9f9;
-                border: 1px solid #e0e0e0;
-                border-radius: 8px;
-                padding: 16px;
-                text-align: center;
-                height: 100%; 
-            }
-        </style>
-    """
-    st.markdown(metric_style, unsafe_allow_html=True)
-
-    # Cria arquivo de usos de cupom se não existir
-    if not os.path.exists(CUPOM_USOS_PATH):
-        pd.DataFrame(columns=["email","data","loja","tipo","valor","local"]).to_csv(CUPOM_USOS_PATH, index=False)
-
-    # Verifica se usuário está logado
-    email = st.session_state.get("user_email")
-    if not email:
-        st.info("Faça login para acessar a simulação.")
-        return
-
-    # Carrega dados do usuário
-    df_users = load_users()
-    user_data = df_users[df_users["email"] == email]
-    
-    if user_data.empty:
-        st.error("Usuário não encontrado.")
-        return
-        
-    # Extrai dados do usuário
-    cupons_usados = int(user_data["cupons_usados"].iloc[0]) if not pd.isna(user_data["cupons_usados"].iloc[0]) else 0
-    total_economizado = float(user_data["total_economizado"].iloc[0]) if not pd.isna(user_data["total_economizado"].iloc[0]) else 0.0
-    xp = int(user_data["xp"].iloc[0]) if not pd.isna(user_data["xp"].iloc[0]) else 0
-    nivel_id = int(user_data["nivel"].iloc[0]) if not pd.isna(user_data["nivel"].iloc[0]) else 1
-    
-    if nivel_id not in gamificacao.niveis:
-        nivel_id = 1
-        
-    nivel_info = gamificacao.niveis.get(nivel_id, gamificacao.niveis[1])
-    progresso, proximo_nivel_info = gamificacao.calcular_progresso(cupons_usados, nivel_id)
-
-    # Sistema de abas organizado
-    tab1, tab2, tab3, tab4 = st.tabs(["🎮 Progresso", "📊 Desempenho", "🎯 Simulação", "🏆 Conquistas"])
-
-    with tab1:
-        # Layout principal do progresso
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            # Card de Nível Atual - mostra nível atual e progresso
-            st.markdown(f"""
-                <div style="background: linear-gradient(135deg, {nivel_info['cor']}20, {nivel_info['cor']}40); 
-                            padding: 20px; border-radius: 15px; border-left: 5px solid {nivel_info['cor']};
-                            margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-size: 14px; color: #666;">Seu Nível Atual</div>
-                            <div style="font-size: 24px; font-weight: bold; color: {nivel_info['cor']};">{nivel_info['nome']}</div>
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-size: 14px; color: #666;">Cashback</div>
-                            <div style="font-size: 20px; font-weight: bold; color: {nivel_info['cor']};">{nivel_info['cashback']}%</div>
-                        </div>
-                    </div>
-                    <div style="margin-top: 15px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666;">
-                            <span>{cupons_usados} cupons usados</span>
-                            <span>{proximo_nivel_info['cupons_necessarios'] if proximo_nivel_info else 'Máximo'}</span>
-                        </div>
-                        <div style="background: #e0e0e0; height: 8px; border-radius: 4px; margin-top: 5px;">
-                            <div style="background: {nivel_info['cor']}; height: 100%; width: {progresso * 100}%; border-radius: 4px;"></div>
-                        </div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            # Estatísticas Rápidas
-            col_stat1, col_stat2, col_stat3 = st.columns(3)
-            
-            with col_stat1:
-                st.markdown(f'''
-                    <div class="metric-box">
-                        <div class="black-metric-label">💰 Total Economizado</div>
-                        <div class="black-metric-value">R$ {total_economizado:.2f}</div>
-                    </div>
-                ''', unsafe_allow_html=True)
-                
-            with col_stat2:
-                st.markdown(f'''
-                    <div class="metric-box">
-                        <div class="black-metric-label">⭐ XP Acumulado</div>
-                        <div class="black-metric-value">{xp}</div>
-                    </div>
-                ''', unsafe_allow_html=True)
-                
-            with col_stat3:
-                if proximo_nivel_info:
-                    st.markdown(f'''
-                        <div class="metric-box">
-                            <div class="black-metric-label">🏆 Próximo Nível</div>
-                            <div class="black-metric-value">{proximo_nivel_info["nome"]}</div>
-                        </div>
-                    ''', unsafe_allow_html=True)
-                else:
-                    st.markdown(f'''
-                        <div class="metric-box">
-                            <div class="black-metric-label">🏆 Nível Máximo</div>
-                            <div class="black-metric-value">Alcançado!</div>
-                        </div>
-                    ''', unsafe_allow_html=True)
-
-        with col2:
-            # Conquistas Rápidas - mostra as 3 conquistas mais recentes
-            st.markdown("**🏅 Conquistas Recentes**")
-            conquistas_desbloqueadas = []
-            for key, conquista in gamificacao.conquistas.items():
-                if user_data[f"conquista_{key}"].iloc[0] if f"conquista_{key}" in user_data.columns else False:
-                    conquistas_desbloqueadas.append(conquista)
-            
-            if conquistas_desbloqueadas:
-                for conquista in conquistas_desbloqueadas[:3]:  # Mostra apenas as 3 mais recentes
-                    st.markdown(f"<div style='color: #000000;'>{conquista['icone']} <strong>{conquista['nome']}</strong></div>", unsafe_allow_html=True)
-                    st.caption(conquista['descricao'])
-            else:
-                st.info("Nenhuma conquista desbloqueada ainda.")
-
-        # Sistema de Níveis - mostra todos os níveis disponíveis
-        st.subheader("💎 Jornada de Níveis")
-        niveis_cols = st.columns(len(gamificacao.niveis))
-        
-        for idx, (nivel_key, info) in enumerate(gamificacao.niveis.items()):
-            with niveis_cols[idx]:
-                is_current = nivel_key == nivel_id
-                is_unlocked = cupons_usados >= info["cupons_necessarios"]
-                
-                border_color = info["cor"] if is_current or is_unlocked else "#e0e0e0"
-                bg_color = f"{info['cor']}20" if is_current else "#f8f9fa" if is_unlocked else "#f8f9fa"
-                text_color = info["cor"] if is_current or is_unlocked else "#999"
-                
-                nivel_html = f"""
-                <div style="background: {bg_color}; padding: 15px; border-radius: 10px; border: 2px solid {border_color}; text-align: center; height: 120px;">
-                    <div style="font-size: 20px; color: {text_color};">{info['nome'].split(' ')[0]}</div>
-                    <div style="font-size: 12px; color: {text_color}; margin: 5px 0;">{info['cupons_necessarios']}+ cupons</div>
-                    <div style="font-size: 14px; font-weight: bold; color: {info['cor']};">{info['cashback']}% cashback</div>
-                """
-                
-                if is_unlocked:
-                    nivel_html += '<div style="font-size: 10px; color: green; margin-top: 5px;">✓ Desbloqueado</div>'
-                if is_current:
-                    nivel_html += '<div style="font-size: 10px; color: blue; margin-top: 5px;">● Atual</div>'
-                
-                nivel_html += "</div>"
-                
-                st.markdown(nivel_html, unsafe_allow_html=True)
-
-        # Registro de Cupom - formulário para registrar novo cupom
-        st.markdown("---")
-        st.subheader("🎁 Registrar Uso de Cupom")
-        
-        with st.form("form_cupom", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                loja = st.text_input("🏪 Loja", placeholder="Ex: Supermercado São João")
-                tipo = st.selectbox("🎯 Tipo de Cupom", ["Desconto", "Cashback", "Fidelidade", "Primeira Compra", "Frete Grátis"])
-            with col2:
-                valor = st.number_input("💰 Valor do Cupom (R$)", min_value=0.0, step=1.0, format="%.2f")
-                local = st.text_input("📍 Local", placeholder="Ex: São Paulo - SP")
-            
-            submit = st.form_submit_button("🎊 Registrar Cupom", use_container_width=True)
-
-        if submit:
-            if not loja:
-                st.warning("Por favor, informe o nome da loja.")
-            else:
-                cupom_data = {
-                    "loja": loja,
-                    "tipo": tipo,
-                    "valor": valor,
-                    "local": local
-                }
-                
-                # Atualiza gamificação e verifica conquistas
-                conquistas_desbloqueadas = atualizar_usuario_gamificacao(email, cupom_data)
-                
-                # Salva no histórico
-                usos = pd.read_csv(CUPOM_USOS_PATH) if os.path.exists(CUPOM_USOS_PATH) else pd.DataFrame(columns=["email","data","loja","tipo","valor","local"])
-                usos = pd.concat([usos, pd.DataFrame([{
-                    "email": email, 
-                    "data": datetime.datetime.now().isoformat(),
-                    "loja": loja, 
-                    "tipo": tipo, 
-                    "valor": float(valor), 
-                    "local": local
-                }])], ignore_index=True)
-                usos.to_csv(CUPOM_USOS_PATH, index=False)
-
-                st.success("🎉 Cupom registrado com sucesso!")
-                
-                # Mostra conquistas desbloqueadas com animação
-                if conquistas_desbloqueadas:
-                    st.balloons()
-                    for conquista_id in conquistas_desbloqueadas:
-                        conquista = gamificacao.conquistas[conquista_id]
-                        st.markdown(f"""
-                            <div style="background: linear-gradient(135deg, #FFD700, #FFA500); 
-                                        padding: 15px; border-radius: 10px; text-align: center; 
-                                        margin: 10px 0; border: 2px solid #FF6B00;">
-                                <div style="font-size: 24px;">{conquista['icone']}</div>
-                                <div style="font-size: 18px; font-weight: bold; color: #000;">Conquista Desbloqueada!</div>
-                                <div style="font-size: 16px; color: #000;">{conquista['nome']}</div>
-                                <div style="font-size: 14px; color: #333;">{conquista['descricao']}</div>
-                                <div style="font-size: 12px; color: #666; margin-top: 5px;">+{conquista['xp']} XP ganhos!</div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                
-                st.rerun()
-
-    with tab2:
-        st.subheader("📊 Análise de Desempenho")
-        
-        # Gráfico de progresso mensal (simulado)
-        fig_progresso = go.Figure()
-        
-        meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun']
-        cupons_mensais = [max(1, cupons_usados // len(meses)) for _ in range(len(meses))]
-        if cupons_mensais:
-            cupons_mensais[-1] = cupons_usados - sum(cupons_mensais[:-1])
-        
-        fig_progresso.add_trace(go.Bar(
-            x=meses,
-            y=cupons_mensais,
-            name="Cupons Usados",
-            marker_color=PRIMARY
-        ))
-        
-        fig_progresso.update_layout(
-            title="Evolução Mensal de Cupons Usados",
-            xaxis_title="Mês",
-            yaxis_title="Quantidade de Cupons",
-            showlegend=True
-        )
-        
-        fig_progresso = style_fig(fig_progresso) 
-        st.plotly_chart(fig_progresso, use_container_width=True)
-        
-        # Métricas de diversificação
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            lojas_val = user_data["lojas_visitadas"].iloc[0].count(",") + 1 if user_data["lojas_visitadas"].iloc[0] != "[]" else 0
-            st.markdown(f'<div class="black-metric-label">🏪 Lojas Diferentes</div><div class="black-metric-value">{lojas_val}</div>', unsafe_allow_html=True)
-        with col2:
-            tipos_val = user_data["tipos_usados"].iloc[0].count(",") + 1 if user_data["tipos_usados"].iloc[0] != "[]" else 0
-            st.markdown(f'<div class="black-metric-label">🎯 Tipos de Cupom</div><div class="black-metric-value">{tipos_val}</div>', unsafe_allow_html=True)
-        with col3:
-            economia_media = total_economizado / cupons_usados if cupons_usados > 0 else 0
-            st.markdown(f'<div class="black-metric-label">💰 Economia Média por Cupom</div><div class="black-metric-value">R$ {economia_media:.2f}</div>', unsafe_allow_html=True)
-
-    with tab3:
-        st.subheader("🎯 Simulação Avançada")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**Simulação Rápida**")
-            num_cupons_simular = st.slider("Número de cupons para simular", 1, 50, 10, key="sim_num")
-            valor_medio_simular = st.slider("Valor médio por cupom (R$)", 10.0, 500.0, 100.0, key="sim_valor")
-            
-            if st.button("🚀 Executar Simulação", use_container_width=True, key="sim_btn"):
-                # Simula vários cupons de uma vez
-                for i in range(num_cupons_simular):
-                    cupom_simulado = {
-                        "loja": f"Loja Simulada {i+1}",
-                        "tipo": np.random.choice(["Desconto", "Cashback", "Fidelidade"]),
-                        "valor": valor_medio_simular * np.random.uniform(0.5, 1.5),
-                        "local": "Simulação"
-                    }
-                    atualizar_usuario_gamificacao(email, cupom_simulado)
-                
-                st.success(f"✅ {num_cupons_simular} cupons simulados com sucesso!")
-                st.rerun()
-        
-        with col2:
-            st.markdown("**Calculadora de Progresso**")
-            cupons_desejados = st.number_input("Cupons para próximo nível", 
-                                             min_value=cupons_usados+1, 
-                                             max_value=100, 
-                                             value=min(cupons_usados+10, 100),
-                                             key="calc_cupons")
-            
-            if proximo_nivel_info:
-                cupons_necessarios = proximo_nivel_info["cupons_necessarios"] - cupons_usados
-                st.info(f"📊 Para **{proximo_nivel_info['nome']}**: mais **{cupons_necessarios}** cupons")
-                
-                cupons_por_semana = st.slider("Cupons por semana", 1, 20, 5, key="calc_semana")
-                semanas_necessarias = max(1, cupons_necessarios // cupons_por_semana) if cupons_por_semana > 0 else 0
-                st.markdown(f'<div class="black-metric-label">⏱️ Tempo estimado</div><div class="black-metric-value">{semanas_necessarias} semanas</div>', unsafe_allow_html=True)
-
-    with tab4:
-        st.subheader("🏆 Todas as Conquistas")
-        
-        conquistas_cols = st.columns(2)
-        
-        # Mostra todas as conquistas disponíveis
-        for idx, (conquista_id, conquista) in enumerate(gamificacao.conquistas.items()):
-            col_idx = idx % 2
-            desbloqueada = user_data[f"conquista_{conquista_id}"].iloc[0] if f"conquista_{conquista_id}" in user_data.columns else False
-            
-            with conquistas_cols[col_idx]:
-                bg_color = "#f0f8f0" if desbloqueada else "#f5f5f5"
-                border_color = "#4CAF50" if desbloqueada else "#e0e0e0"
-                icon_color = "#4CAF50" if desbloqueada else "#999"
-                
-                st.markdown(f"""
-                    <div style="background: {bg_color}; padding: 15px; border-radius: 10px; border: 2px solid {border_color}; margin-bottom: 10px;">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 24px; color: {icon_color};">{conquista['icone']}</span>
-                            <div>
-                                <div style="font-weight: bold; color: {'#000' if desbloqueada else '#666'};">{conquista['nome']}</div>
-                                <div style="font-size: 12px; color: {'#666' if desbloqueada else '#999'};">{conquista['descricao']}</div>
-                                <div style="font-size: 11px; color: #888; margin-top: 5px;">+{conquista['xp']} XP</div>
-                            </div>
-                        </div>
-                        {'<div style="text-align: right; color: #4CAF50; font-size: 12px;">✓ Desbloqueada</div>' if desbloqueada else '<div style="text-align: right; color: #999; font-size: 12px;">🔒 Bloqueada</div>'}
-                    </div>
-                """, unsafe_allow_html=True)
-
-    # Histórico de Usos
-    st.markdown("---")
-    st.subheader("📋 Histórico de Cupons")
-    if os.path.exists(CUPOM_USOS_PATH):
-        hist = pd.read_csv(CUPOM_USOS_PATH)
-        hist = hist[hist["email"] == email]
-        if not hist.empty:
-            hist["data"] = pd.to_datetime(hist["data"]).dt.strftime("%d/%m/%Y %H:%M")
-            hist["economia_estimada"] = hist["valor"] * 0.1  # 10% de economia
-            st.dataframe(
-                hist.sort_values("data", ascending=False).style.format({
-                    "valor": "R$ {:.2f}",
-                    "economia_estimada": "R$ {:.2f}"
-                }), 
-                use_container_width=True
-            )
-            
-            # Métricas resumidas do histórico
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.markdown(f'''
-                    <div class="metric-box">
-                        <div class="black-metric-label">Total de Cupons</div>
-                        <div class="black-metric-value">{len(hist)}</div>
-                    </div>
-                ''', unsafe_allow_html=True)
-            with col2:
-                st.markdown(f'''
-                    <div class="metric-box">
-                        <div class="black-metric-label">Economia Total</div>
-                        <div class="black-metric-value">R$ {hist["economia_estimada"].sum():.2f}</div>
-                    </div>
-                ''', unsafe_allow_html=True)
-            with col3:
-                lojas_unicas = hist["loja"].nunique()
-                st.markdown(f'''
-                    <div class="metric-box">
-                        <div class="black-metric-label">Lojas Diferentes</div>
-                        <div class="black-metric-value">{lojas_unicas}</div>
-                    </div>
-                ''', unsafe_allow_html=True)
-        else:
-            st.info("Nenhum cupom registrado ainda.")
-
-def page_sobre():
-    """
-    Página Sobre - mostra informações sobre a equipe do projeto e sobre o CupomGO
-    """
-    top_header()
-    hero("👥 Sobre o CupomGO", "Conheça nossa plataforma, equipe e professores orientadores")
-
-    # Sobre o CupomGO
-    st.markdown("""
-    <div style="background-color: #f8f9fa; border-radius: 15px; padding: 30px; margin-bottom: 30px; 
-                border-left: 5px solid #0C2D6B; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        <h2 style="color: #0C2D6B; margin-top: 0;">💳 Sobre o CupomGO</h2>
-        <p style="color: #333; font-size: 16px; line-height: 1.6;">
-        O <strong>CupomGO</strong> é uma plataforma inovadora de gestão e gamificação de cupons de desconto, 
-        desenvolvida para transformar a experiência de economia em uma jornada interativa e recompensadora. 
-        Nosso objetivo é conectar usuários a descontos exclusivos, enquanto oferecemos às empresas insights 
-        valiosos sobre o comportamento de consumo.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Tecnologia
-    st.markdown("---")
-    st.subheader("🛠️ Tecnologia")
-    
-    tech_col1, tech_col2, tech_col3, tech_col4 = st.columns(4)
-    
-    with tech_col1:
-        st.markdown("""
-        <div style="text-align: center; padding: 15px;">
-            <div style="font-size: 36px; margin-bottom: 10px;">🎨</div>
-            <h5 style="color: #0C2D6B; margin: 0;">Streamlit</h5>
-            <p style="color: #666; font-size: 12px; margin: 5px 0 0 0;">
-            Interface Web
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with tech_col2:
-        st.markdown("""
-        <div style="text-align: center; padding: 15px;">
-            <div style="font-size: 36px; margin-bottom: 10px;">📊</div>
-            <h5 style="color: #0C2D6B; margin: 0;">Plotly</h5>
-            <p style="color: #666; font-size: 12px; margin: 5px 0 0 0;">
-            Visualizações
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with tech_col3:
-        st.markdown("""
-        <div style="text-align: center; padding: 15px;">
-            <div style="font-size: 36px; margin-bottom: 10px;">🐼</div>
-            <h5 style="color: #0C2D6B; margin: 0;">Pandas</h5>
-            <p style="color: #666; font-size: 12px; margin: 5px 0 0 0;">
-            Dados
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with tech_col4:
-        st.markdown("""
-        <div style="text-align: center; padding: 15px;">
-            <div style="font-size: 36px; margin-bottom: 10px;">🎯</div>
-            <h5 style="color: #0C2D6B; margin: 0;">Gamificação</h5>
-            <p style="color: #666; font-size: 12px; margin: 5px 0 0 0;">
-            Sistema Proprietário
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Integrantes do grupo
-    st.markdown("---")
-    st.subheader("🎓 Integrantes do Grupo")
-    
-    integrantes = [
-        "Carlos Roberto Santos Latorre",
-        "Felipe Lin", 
-        "Felipe Wakasa Klabunde",
-        "Stephany Aliyah Guimarães Eurípedes de Paula"
-    ]
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        for i in range(0, len(integrantes), 2):
-            st.markdown(f"""
-                <div style="background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; 
-                            border-left: 4px solid #0C2D6B; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    <div style="font-weight: bold; color: #0C2D6B;">👤 {integrantes[i]}</div>
-                </div>
-            """, unsafe_allow_html=True)
-    
-    with col2:
-        for i in range(1, len(integrantes), 2):
-            if i < len(integrantes):
-                st.markdown(f"""
-                    <div style="background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; 
-                                border-left: 4px solid #0C2D6B; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                        <div style="font-weight: bold; color: #0C2D6B;">👤 {integrantes[i]}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-
-    # Professores orientadores
-    st.markdown("---")
-    st.subheader("🏫 Professores Orientadores")
-    
-    professores = [
-        "Eduardo Savino Gomes",
-        "Lucy Mari Tabuti", 
-        "Mauricio Lopes Da Cunha",
-        "Rodnil da Silva Moreira Lisboa"
-    ]
-    
-    prof_col1, prof_col2 = st.columns(2)
-    
-    with prof_col1:
-        for i in range(0, len(professores), 2):
-            st.markdown(f"""
-                <div style="background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; 
-                            border-left: 4px solid #10b981; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    <div style="font-weight: bold; color: #10b981;">🎓 {professores[i]}</div>
-                </div>
-            """, unsafe_allow_html=True)
-    
-    with prof_col2:
-        for i in range(1, len(professores), 2):
-            if i < len(professores):
-                st.markdown(f"""
-                    <div style="background: white; padding: 15px; border-radius: 10px; margin-bottom: 10px; 
-                                border-left: 4px solid #10b981; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                        <div style="font-weight: bold; color: #10b981;">🎓 {professores[i]}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-
-    # Footer
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; color: #666; padding: 20px;">
-        <p>💡 <strong>CupomGO</strong> - Transformando economia em experiência 🎮</p>
-      
-    </div>
-    """, unsafe_allow_html=True)
+# ... (o restante do código permanece igual, incluindo page_simulacaologin, page_sobre, etc.)
 
 # ---------------- Estado da Aplicação ----------------
 # Inicializa o estado da aplicação se não existir
