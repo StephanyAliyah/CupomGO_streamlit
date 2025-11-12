@@ -443,10 +443,6 @@ def time_axes_enhance(fig):
     )
     return fig
 
-def df_download_button(df, label="⬇️ Baixar dados (CSV)", fname="dados.csv"):
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button(label, csv, file_name=fname, mime="text/csv")
-
 # ---------------- Sistema de Gamificação ----------------
 class SistemaGamificacao:
     """
@@ -1107,6 +1103,79 @@ def signup_screen():
                 st.rerun()
 
 # ---------------- Páginas Principais do Sistema ----------------
+def generate_example_data(num_rows=2500):
+    """
+    Cria dados de exemplo realistas quando não temos dados reais.
+    Isso permite demonstrar a aplicação mesmo sem base de dados.
+    """
+    np.random.seed(42)  # Para resultados consistentes
+    
+    # Gera datas dos últimos ~18 meses
+    end_date = datetime.datetime.now()
+    start_date = end_date - datetime.timedelta(days=540) 
+    
+    # Cria datas com mais transações em finais de semana
+    base_days = pd.date_range(start_date, end_date)
+    day_weights = [0.9, 0.9, 1.0, 1.1, 1.4, 1.5, 1.2]  # Segunda a Domingo
+    day_probs = [day_weights[d.weekday()] for d in base_days]
+    day_probs = np.array(day_probs) / sum(day_probs)
+    chosen_dates = np.random.choice(base_days, num_rows, p=day_probs, replace=True)
+    
+    # Horários mais prováveis: almoço e jantar
+    hours_lunch = np.random.normal(12.5, 1, num_rows // 2)
+    hours_evening = np.random.normal(20, 1.5, num_rows - (num_rows // 2))
+    hours = np.concatenate([hours_lunch, hours_evening])
+    np.random.shuffle(hours)
+    minutes = np.random.randint(0, 60, num_rows)
+    
+    # Combina datas e horários
+    final_dates = [
+        d.replace(hour=int(h % 24), minute=int(m), second=0, microsecond=0)
+        for d, h, m in zip(chosen_dates, hours, minutes)
+    ]
+    
+    df = pd.DataFrame({'data_captura': final_dates})
+    
+    # Lojas realistas com probabilidades diferentes
+    lojas = ['iFood', 'Mercado Livre', 'Amazon', 'Uber', 'Magazine Luiza', 'Supermercado Dia', 'Renner', 'Netshoes']
+    loja_probs = [0.30, 0.20, 0.15, 0.10, 0.08, 0.07, 0.05, 0.05]
+    df['nome_loja'] = np.random.choice(lojas, num_rows, p=loja_probs)
+    
+    # Categorias das lojas
+    cat_map = {
+        'iFood': 'Alimentação', 'Uber': 'Transporte', 'Supermercado Dia': 'Varejo', 'Renner': 'Moda', 
+        'Netshoes': 'Esportes', 'Mercado Livre': 'Marketplace', 'Amazon': 'Marketplace', 'Magazine Luiza': 'Varejo'
+    }
+    df['categoria_estabelecimento'] = df['nome_loja'].map(cat_map)
+    
+    # Tipos de cupom
+    tipos = ['Desconto %', 'Cashback', 'Frete Grátis', 'Primeira Compra']
+    tipo_probs = [0.4, 0.3, 0.2, 0.1]
+    df['tipo_cupom'] = np.random.choice(tipos, num_rows, p=tipo_probs)
+    
+    # Valores realistas por loja
+    valor_base_map = {
+        'iFood': 70, 'Uber': 30, 'Supermercado Dia': 150, 'Renner': 200, 
+        'Netshoes': 250, 'Mercado Livre': 180, 'Amazon': 220, 'Magazine Luiza': 800
+    }
+    df['valor_base'] = df['nome_loja'].map(valor_base_map)
+    df['valor_compra'] = np.random.normal(df['valor_base'], df['valor_base'] * 0.3).clip(10, 5000).round(2)
+    
+    # Margens e custos realistas
+    margem_map = {
+        'iFood': 0.3, 'Uber': 0.2, 'Supermercado Dia': 0.15, 'Renner': 0.4, 
+        'Netshoes': 0.35, 'Mercado Livre': 0.25, 'Amazon': 0.2, 'Magazine Luiza': 0.22
+    }
+    df['margem_bruta'] = df['nome_loja'].map(margem_map)
+    df['custo_venda'] = (df['valor_compra'] * (1 - df['margem_bruta'])).round(2)
+    df['lucro_bruto'] = (df['valor_compra'] - df['custo_venda']).round(2)
+    
+    # Investimento em marketing varia por tipo de cupom
+    invest_map = {'Desconto %': 0.05, 'Cashback': 0.08, 'Frete Grátis': 0.03, 'Primeira Compra': 0.15}
+    df['investimento_mkt'] = (df['tipo_cupom'].map(invest_map) * df['valor_compra'] + np.random.uniform(0.5, 2, num_rows)).round(2)
+    
+    return df.drop(columns=['valor_base', 'margem_bruta'])
+
 def page_home(tx, stores):
     """
     Página inicial - visão geral do sistema.
@@ -1225,84 +1294,6 @@ def page_home(tx, stores):
     fig = time_axes_enhance(fig)
     st.plotly_chart(fig, use_container_width=True)
 
-    # baixar dados do gráfico
-    df_download_button(resumo.rename(columns={"Periodo":"periodo","Ticket_Médio":"ticket_medio"}), 
-                       "⬇️ Baixar dados do gráfico (CSV)",
-                       "home_resumo.csv")
-
-def generate_example_data(num_rows=2500):
-    """
-    Cria dados de exemplo realistas quando não temos dados reais.
-    Isso permite demonstrar a aplicação mesmo sem base de dados.
-    """
-    np.random.seed(42)  # Para resultados consistentes
-    
-    # Gera datas dos últimos ~18 meses
-    end_date = datetime.datetime.now()
-    start_date = end_date - datetime.timedelta(days=540) 
-    
-    # Cria datas com mais transações em finais de semana
-    base_days = pd.date_range(start_date, end_date)
-    day_weights = [0.9, 0.9, 1.0, 1.1, 1.4, 1.5, 1.2]  # Segunda a Domingo
-    day_probs = [day_weights[d.weekday()] for d in base_days]
-    day_probs = np.array(day_probs) / sum(day_probs)
-    chosen_dates = np.random.choice(base_days, num_rows, p=day_probs, replace=True)
-    
-    # Horários mais prováveis: almoço e jantar
-    hours_lunch = np.random.normal(12.5, 1, num_rows // 2)
-    hours_evening = np.random.normal(20, 1.5, num_rows - (num_rows // 2))
-    hours = np.concatenate([hours_lunch, hours_evening])
-    np.random.shuffle(hours)
-    minutes = np.random.randint(0, 60, num_rows)
-    
-    # Combina datas e horários
-    final_dates = [
-        d.replace(hour=int(h % 24), minute=int(m), second=0, microsecond=0)
-        for d, h, m in zip(chosen_dates, hours, minutes)
-    ]
-    
-    df = pd.DataFrame({'data_captura': final_dates})
-    
-    # Lojas realistas com probabilidades diferentes
-    lojas = ['iFood', 'Mercado Livre', 'Amazon', 'Uber', 'Magazine Luiza', 'Supermercado Dia', 'Renner', 'Netshoes']
-    loja_probs = [0.30, 0.20, 0.15, 0.10, 0.08, 0.07, 0.05, 0.05]
-    df['nome_loja'] = np.random.choice(lojas, num_rows, p=loja_probs)
-    
-    # Categorias das lojas
-    cat_map = {
-        'iFood': 'Alimentação', 'Uber': 'Transporte', 'Supermercado Dia': 'Varejo', 'Renner': 'Moda', 
-        'Netshoes': 'Esportes', 'Mercado Livre': 'Marketplace', 'Amazon': 'Marketplace', 'Magazine Luiza': 'Varejo'
-    }
-    df['categoria_estabelecimento'] = df['nome_loja'].map(cat_map)
-    
-    # Tipos de cupom
-    tipos = ['Desconto %', 'Cashback', 'Frete Grátis', 'Primeira Compra']
-    tipo_probs = [0.4, 0.3, 0.2, 0.1]
-    df['tipo_cupom'] = np.random.choice(tipos, num_rows, p=tipo_probs)
-    
-    # Valores realistas por loja
-    valor_base_map = {
-        'iFood': 70, 'Uber': 30, 'Supermercado Dia': 150, 'Renner': 200, 
-        'Netshoes': 250, 'Mercado Livre': 180, 'Amazon': 220, 'Magazine Luiza': 800
-    }
-    df['valor_base'] = df['nome_loja'].map(valor_base_map)
-    df['valor_compra'] = np.random.normal(df['valor_base'], df['valor_base'] * 0.3).clip(10, 5000).round(2)
-    
-    # Margens e custos realistas
-    margem_map = {
-        'iFood': 0.3, 'Uber': 0.2, 'Supermercado Dia': 0.15, 'Renner': 0.4, 
-        'Netshoes': 0.35, 'Mercado Livre': 0.25, 'Amazon': 0.2, 'Magazine Luiza': 0.22
-    }
-    df['margem_bruta'] = df['nome_loja'].map(margem_map)
-    df['custo_venda'] = (df['valor_compra'] * (1 - df['margem_bruta'])).round(2)
-    df['lucro_bruto'] = (df['valor_compra'] - df['custo_venda']).round(2)
-    
-    # Investimento em marketing varia por tipo de cupom
-    invest_map = {'Desconto %': 0.05, 'Cashback': 0.08, 'Frete Grátis': 0.03, 'Primeira Compra': 0.15}
-    df['investimento_mkt'] = (df['tipo_cupom'].map(invest_map) * df['valor_compra'] + np.random.uniform(0.5, 2, num_rows)).round(2)
-    
-    return df.drop(columns=['valor_base', 'margem_bruta'])
-
 def page_kpis(tx):
     """
     Página de Indicadores Executivos - métricas para tomada de decisão.
@@ -1384,7 +1375,6 @@ def page_kpis(tx):
         fig_ceo = style_fig(fig_ceo)
         fig_ceo = time_axes_enhance(fig_ceo)
         st.plotly_chart(fig_ceo, use_container_width=True)
-        df_download_button(conv, "⬇️ CSV (CEO)", "kpi_ceo.csv")
 
     with tab2:
         st.subheader("🔧 Performance CTO - Operações")
@@ -1418,7 +1408,6 @@ def page_kpis(tx):
         fig_cto = style_fig(fig_cto, y_fmt=",.0f")
         fig_cto = time_axes_enhance(fig_cto)
         st.plotly_chart(fig_cto, use_container_width=True)
-        df_download_button(vol, "⬇️ CSV (CTO)", "kpi_cto.csv")
 
     with tab3:
         st.subheader("💰 Performance CFO - Receita e ROI")
@@ -1444,6 +1433,33 @@ def page_kpis(tx):
 
         agg = agg.sort_values(sort_by, ascending=False).head(topN)
 
+        # ADICIONADO: Mostrar dados diretamente no gráfico
+        st.markdown("**📊 Dados Detalhados das Lojas (Top 10)**")
+        
+        # Formata os dados para exibição
+        display_data = agg.copy()
+        display_data["Receita"] = display_data["Receita"].apply(lambda x: f"R$ {x:,.2f}")
+        display_data["Investimento"] = display_data["Investimento"].apply(lambda x: f"R$ {x:,.2f}")
+        if "Lucro" in display_data.columns:
+            display_data["Lucro"] = display_data["Lucro"].apply(lambda x: f"R$ {x:,.2f}")
+        display_data["ROI"] = display_data["ROI"].apply(lambda x: f"{x:.2f}%")
+        display_data["Transacoes"] = display_data["Transacoes"].apply(lambda x: f"{x:,}")
+        
+        # Mostra a tabela com os dados
+        st.dataframe(
+            display_data,
+            column_config={
+                scol: "Loja",
+                "Receita": "Receita Total",
+                "Transacoes": "Transações",
+                "Investimento": "Investimento",
+                "Lucro": st.column_config.Column("Lucro", help="Lucro bruto após investimento") if "Lucro" in display_data.columns else None,
+                "ROI": "ROI (%)"
+            },
+            use_container_width=True,
+            hide_index=True
+        )
+
         fig_cfo = go.Figure()
         fig_cfo.add_trace(go.Bar(x=agg[scol].astype(str), y=agg["Receita"], name="Receita (R$)", marker_color=PRIMARY,
                                  hovertemplate="Loja: %{x}<br>Receita: R$ %{y:,.2f}<extra></extra>"))
@@ -1455,7 +1471,6 @@ def page_kpis(tx):
                               yaxis2=dict(overlaying="y", side="right", title="ROI (%)"))
         fig_cfo = style_fig(fig_cfo, y_fmt=",.2f")
         st.plotly_chart(fig_cfo, use_container_width=True)
-        df_download_button(agg, "⬇️ CSV (CFO)", "kpi_cfo.csv")
 
 def page_tendencias(tx):
     """
@@ -1755,22 +1770,18 @@ def page_financeiro(tx):
         if cum:
             dfp["Receita"] = dfp["Receita"].cumsum()
         st.plotly_chart(_line(dfp, "Receita", "Receita Total por Período"), use_container_width=True)
-        df_download_button(dfp[["Periodo","Receita"]], "⬇️ CSV Receita", "fin_receita.csv")
 
     with tabs[1]:
         st.plotly_chart(_line(resumo, "Ticket", "Ticket Médio por Período"), use_container_width=True)
-        df_download_button(resumo[["Periodo","Ticket"]], "⬇️ CSV Ticket", "fin_ticket.csv")
 
     with tabs[2]:
         dfp = resumo.copy()
         if cum:
             dfp["Lucro"] = dfp["Lucro"].cumsum()
         st.plotly_chart(_line(dfp, "Lucro", "Lucro Estimado por Período"), use_container_width=True)
-        df_download_button(dfp[["Periodo","Lucro"]], "⬇️ CSV Lucro", "fin_lucro.csv")
 
     with tabs[3]:
         st.plotly_chart(_line(resumo, "ROI", "ROI (%) por Período", yfmt=",.2f", color="#7E7E7E"), use_container_width=True)
-        df_download_button(resumo[["Periodo","ROI"]], "⬇️ CSV ROI", "fin_roi.csv")
 
 def page_eco():
     """
