@@ -2169,13 +2169,15 @@ def page_graficos_cupons(tx):
                 coluna_valor = 'valor_cupom' if 'valor_cupom' in df.columns else 'valor_compra'
                 lojas_valor = df.groupby('nome_loja')[coluna_valor].sum().nlargest(10)
                 
+                # CORREÇÃO: Use aspas duplas para a f-string interna
+                valor_label = coluna_valor.replace('_', ' ')
                 fig_lojas_valor = px.bar(
                     lojas_valor,
                     x=lojas_valor.values,
                     y=lojas_valor.index,
                     orientation='h',
-                    title=f"Top 10 Lojas (Valor Total - {coluna_valor.replace('_', ' ')})",
-                    labels={'x': f'Valor Total ({coluna_valor.replace('_', ' ')})', 'y': 'Loja'},
+                    title=f"Top 10 Lojas (Valor Total - {valor_label})",
+                    labels={'x': f'Valor Total ({valor_label})', 'y': 'Loja'},
                     color_discrete_sequence=["#FFA15A"]
                 )
                 fig_lojas_valor = style_fig(fig_lojas_valor)
@@ -2207,12 +2209,14 @@ def page_graficos_cupons(tx):
                 coluna_valor = 'valor_cupom' if 'valor_cupom' in df.columns else 'valor_compra'
                 valor_por_tipo = df.groupby('tipo_loja')[coluna_valor].mean().sort_values(ascending=False)
                 
+                # CORREÇÃO: Use aspas duplas para a f-string interna
+                valor_label = coluna_valor.replace('_', ' ')
                 fig_valor_tipo = px.bar(
                     valor_por_tipo,
                     x=valor_por_tipo.index,
                     y=valor_por_tipo.values,
-                    title=f"Valor Médio por Tipo de Loja ({coluna_valor.replace('_', ' ')})",
-                    labels={'x': 'Tipo de Loja', 'y': f'Valor Médio ({coluna_valor.replace('_', ' ')})'},
+                    title=f"Valor Médio por Tipo de Loja ({valor_label})",
+                    labels={'x': 'Tipo de Loja', 'y': f'Valor Médio ({valor_label})'},
                     color_discrete_sequence=["#AB63FA"]
                 )
                 fig_valor_tipo = style_fig(fig_valor_tipo)
@@ -2261,12 +2265,14 @@ def page_graficos_cupons(tx):
         col1, col2 = st.columns(2)
         
         with col1:
+            # CORREÇÃO: Use aspas duplas para a f-string interna
+            valor_label = coluna_valor.replace('_', ' ')
             fig_temporal_valor = px.line(
                 mensal,
                 x='mes',
                 y='total_valor',
-                title=f"Evolução do Valor Total por Mês ({coluna_valor.replace('_', ' ')})",
-                labels={'mes': 'Mês', 'total_valor': f'Valor Total ({coluna_valor.replace('_', ' ')})'},
+                title=f"Evolução do Valor Total por Mês ({valor_label})",
+                labels={'mes': 'Mês', 'total_valor': f'Valor Total ({valor_label})'},
                 markers=True
             )
             fig_temporal_valor = style_fig(fig_temporal_valor)
