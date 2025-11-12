@@ -1440,8 +1440,6 @@ def page_kpis(tx):
                 scol = col
                 break
 
-        st.info(f"Colunas identificadas: Data='{dcol}', Valor='{vcol}', Loja='{scol}'")
-
         if not vcol:
             st.error("""
             ❌ Não foi possível encontrar uma coluna de valor nos dados.
