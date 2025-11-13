@@ -20,172 +20,6 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent
 DATA = (BASE / "data").resolve()
 
-# === SISTEMA DE FILTROS GLOBAL ===
-class SistemaFiltros:
-    """
-    Sistema centralizado de filtros para todos os gráficos do dashboard
-    """
-    
-    def __init__(self):
-        self.filtros_aplicados = {}
-        self.drill_down_stack = []  # Pilha para navegação hierárquica
-        self.widget_counter = 0  # Contador para gerar chaves únicas
-        
-    def _get_unique_key(self, prefix):
-        """Gera uma chave única para widgets do Streamlit"""
-        self.widget_counter += 1
-        return f"{prefix}_{self.widget_counter}_{id(self)}"
-        
-    def criar_filtros_sidebar(self, df):
-        """
-        Cria todos os controles de filtro na sidebar
-        """
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("🎛️ Filtros Globais")
-        
-        # Filtro por período com slider de datas
-        if 'data_captura' in df.columns:
-            datas_validas = pd.to_datetime(df['data_captura'], errors='coerce').dropna()
-            if not datas_validas.empty:
-                min_date = datas_validas.min().date()
-                max_date = datas_validas.max().date()
-                
-                periodo = st.sidebar.date_input(
-                    "📅 Período",
-                    value=(min_date, max_date),
-                    min_value=min_date,
-                    max_value=max_date,
-                    key=self._get_unique_key("filtro_periodo")
-                )
-                
-                if len(periodo) == 2:
-                    self.filtros_aplicados['data_inicio'] = periodo[0]
-                    self.filtros_aplicados['data_fim'] = periodo[1]
-        
-        # Filtro por região (dropdown)
-        if 'regiao' in df.columns:
-            regioes = ['Todos'] + sorted(df['regiao'].dropna().unique().tolist())
-            regiao_selecionada = st.sidebar.selectbox(
-                "🌎 Região",
-                regioes,
-                key=self._get_unique_key("filtro_regiao")
-            )
-            if regiao_selecionada != 'Todos':
-                self.filtros_aplicados['regiao'] = regiao_selecionada
-        
-        # Filtro por ano (botões)
-        if 'data_captura' in df.columns:
-            df_copy = df.copy()
-            df_copy['data_captura'] = pd.to_datetime(df_copy['data_captura'], errors='coerce')
-            df_copy['ano'] = df_copy['data_captura'].dt.year
-            anos_disponiveis = sorted(df_copy['ano'].dropna().unique().astype(int).tolist())
-            
-            if anos_disponiveis:
-                st.sidebar.markdown("**📊 Ano:**")
-                col1, col2 = st.sidebar.columns(2)
-                with col1:
-                    if st.button("2023", use_container_width=True, key=self._get_unique_key("btn_2023")):
-                        self.filtros_aplicados['ano'] = 2023
-                with col2:
-                    if st.button("2024", use_container_width=True, key=self._get_unique_key("btn_2024")):
-                        self.filtros_aplicados['ano'] = 2024
-                
-                # Mostra ano atual selecionado
-                ano_atual = self.filtros_aplicados.get('ano', 'Todos')
-                st.sidebar.info(f"Ano selecionado: **{ano_atual}**")
-        
-        # Filtro por tipo de cupom
-        if 'tipo_cupom' in df.columns:
-            tipos = ['Todos'] + sorted(df['tipo_cupom'].dropna().unique().tolist())
-            tipo_selecionado = st.sidebar.multiselect(
-                "🎯 Tipo de Cupom",
-                tipos,
-                default=['Todos'],
-                key=self._get_unique_key("filtro_tipo")
-            )
-            if 'Todos' not in tipo_selecionado and tipo_selecionado:
-                self.filtros_aplicados['tipo_cupom'] = tipo_selecionado
-        
-        # Filtro por loja
-        if 'nome_loja' in df.columns:
-            lojas = ['Todas'] + sorted(df['nome_loja'].dropna().unique().tolist())
-            loja_selecionada = st.sidebar.selectbox(
-                "🏪 Loja",
-                lojas,
-                key=self._get_unique_key("filtro_loja")
-            )
-            if loja_selecionada != 'Todas':
-                self.filtros_aplicados['nome_loja'] = loja_selecionada
-        
-        # Botão para limpar todos os filtros
-        if st.sidebar.button("🧹 Limpar Filtros", use_container_width=True, key=self._get_unique_key("btn_limpar")):
-            self.filtros_aplicados = {}
-            self.drill_down_stack = []
-            st.rerun()
-        
-        # Mostra filtros ativos
-        if self.filtros_aplicados:
-            st.sidebar.markdown("---")
-            st.sidebar.markdown("**✅ Filtros Ativos:**")
-            for filtro, valor in self.filtros_aplicados.items():
-                st.sidebar.write(f"• {filtro}: {valor}")
-    
-    def aplicar_filtros(self, df):
-        """
-        Aplica todos os filtros ao dataframe
-        """
-        df_filtrado = df.copy()
-        
-        # Filtro de data
-        if 'data_inicio' in self.filtros_aplicados and 'data_fim' in self.filtros_aplicados:
-            if 'data_captura' in df_filtrado.columns:
-                df_filtrado['data_captura'] = pd.to_datetime(df_filtrado['data_captura'], errors='coerce')
-                mask = (df_filtrado['data_captura'].dt.date >= self.filtros_aplicados['data_inicio']) & \
-                       (df_filtrado['data_captura'].dt.date <= self.filtros_aplicados['data_fim'])
-                df_filtrado = df_filtrado[mask]
-        
-        # Filtro de região
-        if 'regiao' in self.filtros_aplicados and 'regiao' in df_filtrado.columns:
-            df_filtrado = df_filtrado[df_filtrado['regiao'] == self.filtros_aplicados['regiao']]
-        
-        # Filtro de ano
-        if 'ano' in self.filtros_aplicados and 'data_captura' in df_filtrado.columns:
-            df_filtrado['data_captura'] = pd.to_datetime(df_filtrado['data_captura'], errors='coerce')
-            df_filtrado = df_filtrado[df_filtrado['data_captura'].dt.year == self.filtros_aplicados['ano']]
-        
-        # Filtro de tipo de cupom
-        if 'tipo_cupom' in self.filtros_aplicados and 'tipo_cupom' in df_filtrado.columns:
-            df_filtrado = df_filtrado[df_filtrado['tipo_cupom'].isin(self.filtros_aplicados['tipo_cupom'])]
-        
-        # Filtro de loja
-        if 'nome_loja' in self.filtros_aplicados and 'nome_loja' in df_filtrado.columns:
-            df_filtrado = df_filtrado[df_filtrado['nome_loja'] == self.filtros_aplicados['nome_loja']]
-        
-        return df_filtrado
-    
-    def adicionar_drill_down(self, nivel, valor):
-        """
-        Adiciona um nível à pilha de drill-down
-        """
-        self.drill_down_stack.append((nivel, valor))
-    
-    def remover_drill_down(self):
-        """
-        Remove o último nível da pilha de drill-down
-        """
-        if self.drill_down_stack:
-            return self.drill_down_stack.pop()
-        return None
-    
-    def get_nivel_atual(self):
-        """
-        Retorna o nível atual de drill-down
-        """
-        return self.drill_down_stack[-1] if self.drill_down_stack else None
-
-# Cria instância global do sistema de filtros
-sistema_filtros = SistemaFiltros()
-
 # === Diagnóstico: lista o que o servidor realmente tem em /data ===
 @st.cache_data(show_spinner=False)
 def _list_data_files():
@@ -988,13 +822,6 @@ def sidebar_nav():
     # Linha divisória
     st.sidebar.markdown("---")
     
-    # === ADICIONAR FILTROS GLOBAIS AQUI ===
-    # Carrega dados para os filtros
-    tx = transacoes if not transacoes.empty else pd.DataFrame()
-    if not tx.empty:
-        sistema_filtros.criar_filtros_sidebar(tx)
-        st.sidebar.markdown("---")
-    
     # Botões de navegação
     active = st.session_state.get("page", "home")
     for label, slug in NAV_ITEMS:
@@ -1225,28 +1052,22 @@ def page_home(tx, stores):
         df = generate_example_data(num_rows=2500)
         df, get = normcols(df)
 
-    # === APLICA FILTROS GLOBAIS ===
-    df_filtrado = sistema_filtros.aplicar_filtros(df)
-    
     # Encontra as colunas de data e valor
     dcol = get("data","data_captura")
     vcol = get("valor_compra","valor")
 
-    # Métricas principais em cards bonitos (usar df_filtrado)
+    # Métricas principais em cards bonitos
     c1, c2, c3, c4 = st.columns(4)
     with c1: 
-        kpi_card("Total de Cupons", f"{len(df_filtrado):,}".replace(",", "."))
+        kpi_card("Total de Cupons", f"{len(df):,}".replace(",", "."))
     with c2: 
-        kpi_card("Conversões", f"{len(df_filtrado):,}".replace(",", "."))
+        kpi_card("Conversões", f"{len(df):,}".replace(",", "."))
     with c3:
-        avg = df_filtrado[vcol].mean() if (vcol and (vcol in df_filtrado.columns)) else 0
+        avg = df[vcol].mean() if (vcol and (vcol in df.columns)) else 0
         kpi_card("Ticket Médio", f"R$ {avg:,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
     with c4:
-        total_receita = df_filtrado[vcol].sum() if (vcol and (vcol in df_filtrado.columns)) else 0
+        total_receita = df[vcol].sum() if (vcol and (vcol in df.columns)) else 0
         kpi_card("Receita Total", f"R$ {total_receita:,.2f}".replace(",", "X").replace(".", ",").replace("X","."))
-
-    # Usar dados filtrados para os gráficos
-    df = df_filtrado.copy()
 
     if not dcol or not vcol or dcol not in df.columns or vcol not in df.columns:
         st.warning("Dados insuficientes para gráficos.")
@@ -1335,10 +1156,6 @@ def page_kpis(tx):
         st.info("Aguardando dados... Gerando dados de exemplo mais realistas para demonstração.")
         df = generate_example_data(num_rows=2500)
         df, get = normcols(df)
-
-    # === APLICA FILTROS GLOBAIS ===
-    df_filtrado = sistema_filtros.aplicar_filtros(df)
-    df = df_filtrado.copy()
 
     # Abas para diferentes perfis executivos
     tab1, tab2, tab3 = st.tabs(["📈 Performance CEO - Conversões e Taxas", "🔧 Performance CTO - Operações", "💰 Performance CFO - Financeiro"])
@@ -1586,10 +1403,6 @@ def page_tendencias(tx):
         df = generate_example_data(num_rows=2500)
         df, get = normcols(df)
 
-    # === APLICA FILTROS GLOBAIS ===
-    df_filtrado = sistema_filtros.aplicar_filtros(df)
-    df = df_filtrado.copy()
-
     # Encontra colunas importantes
     dcol = get("data", "data_captura")
     vcol = get("valor_cupom", "valor_compra", "valor")
@@ -1817,10 +1630,6 @@ def page_financeiro(tx):
         st.info("Sem dados financeiros suficientes em assets/transacoes.xlsx. A carregar dados de exemplo.")
         df = generate_example_data(num_rows=1000)
         df, get = normcols(df)
-
-    # === APLICA FILTROS GLOBAIS ===
-    df_filtrado = sistema_filtros.aplicar_filtros(df)
-    df = df_filtrado.copy()
 
     dcol = get("data","data_captura")
     vcol = get("valor_compra","valor")
@@ -2110,10 +1919,6 @@ def page_graficos_cupons(tx):
         st.info("Gerando dados de exemplo para demonstração.")
         df = generate_example_data(num_rows=1000)
         df, get = normcols(df)
-
-    # === APLICA FILTROS GLOBAIS ===
-    df_filtrado = sistema_filtros.aplicar_filtros(df)
-    df = df_filtrado.copy()
 
     st.markdown("### 🎯 Gráficos com as Colunas Específicas")
 
@@ -2925,8 +2730,6 @@ def main():
         tx = transacoes if not transacoes.empty else pd.DataFrame()
         stores = lojas if not lojas.empty else pd.DataFrame()
         sidebar_nav()
-        
-        # REMOVIDO: diagnosticar_colunas() - removido conforme solicitado
         
         page = st.session_state.get("page", "home")
         
