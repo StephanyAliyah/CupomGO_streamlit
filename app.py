@@ -16,6 +16,53 @@ import datetime, os, hashlib, re  # Utilitários do Python
 from PIL import Image, UnidentifiedImageError  # Para trabalhar com imagens
 from pathlib import Path
 
+# === SISTEMA DE AUTENTICAÇÃO PERSISTENTE ===
+def init_session_state():
+    """Inicializa o estado da sessão com valores padrão"""
+    if "auth" not in st.session_state:
+        st.session_state.auth = False
+    if "auth_mode" not in st.session_state:
+        st.session_state.auth_mode = "login"
+    if "user_email" not in st.session_state:
+        st.session_state.user_email = None
+    if "page" not in st.session_state:
+        st.session_state.page = "home"
+    if "initialized" not in st.session_state:
+        st.session_state.initialized = True
+
+def check_persistent_login():
+    """
+    Verifica se há informações de login salvas e restaura a sessão
+    """
+    # Tenta recuperar o email de uma sessão anterior
+    if not st.session_state.auth and "user_email" in st.session_state and st.session_state.user_email:
+        # Verifica se o usuário ainda existe no banco de dados
+        df_users = load_users()
+        user_exists = not df_users.empty and any(df_users["email"] == st.session_state.user_email)
+        
+        if user_exists:
+            st.session_state.auth = True
+            st.session_state.page = st.session_state.get("page", "home")
+            return True
+    return False
+
+def save_login_state(email):
+    """
+    Salva o estado de login na sessão
+    """
+    st.session_state.auth = True
+    st.session_state.user_email = email
+    st.session_state.page = "home"
+
+def clear_login_state():
+    """
+    Limpa o estado de login (logout)
+    """
+    st.session_state.auth = False
+    st.session_state.user_email = None
+    st.session_state.auth_mode = "login"
+    st.session_state.page = "home"
+
 # === Caminhos robustos (Azure/Linux) ===
 BASE = Path(__file__).resolve().parent
 DATA = (BASE / "data").resolve()
@@ -597,7 +644,13 @@ def check_login(email: str, pwd: str) -> bool:
         return False  # Email não encontrado
     
     # Verifica se a senha hasheada confere
-    return row.iloc[0]["senha_hash"] == hash_password(pwd or "")
+    password_correct = row.iloc[0]["senha_hash"] == hash_password(pwd or "")
+    
+    if password_correct:
+        # Salva o estado de login
+        save_login_state(email)
+    
+    return password_correct
 
 def atualizar_usuario_gamificacao(email: str, cupom_data: dict):
     """
@@ -740,10 +793,8 @@ def top_header():
     with col3:
         # Botão de sair
         if st.button("🚪 Sair", key="logout_btn_top"):
-            # Limpa toda a sessão e volta para o login
-            st.session_state.clear()
-            st.session_state.auth = False
-            st.session_state.page = "home"
+            # Limpa toda a sessão usando a nova função
+            clear_login_state()
             st.rerun()
 
 def hero(title, sub=""):
@@ -871,9 +922,6 @@ def login_screen():
         if ok:
             if email and pwd and check_login(email, pwd):
                 # Login bem-sucedido!
-                st.session_state.auth = True
-                st.session_state.user_email = email
-                st.session_state.page = "home"
                 st.success("✅ Login realizado com sucesso!")
                 st.rerun()
             else:
@@ -2702,16 +2750,8 @@ def page_sobre():
     """, unsafe_allow_html=True)
 
 # ---------------- Estado da Aplicação ----------------
-# Inicializa o estado da aplicação se não existir
-# Think of this as the app's memory - it remembers things between interactions
-if "auth" not in st.session_state: 
-    st.session_state.auth = False  # Whether user is logged in
-if "auth_mode" not in st.session_state: 
-    st.session_state.auth_mode = "login"  # Current auth screen (login/signup)
-if "user_email" not in st.session_state: 
-    st.session_state.user_email = None  # Email of logged in user
-if "page" not in st.session_state: 
-    st.session_state.page = "home"  # Current page being displayed
+# Inicializa o estado da aplicação usando a nova função
+init_session_state()
 
 # ---------------- Roteamento Principal ----------------
 def main():
@@ -2719,6 +2759,13 @@ def main():
     Função principal que controla toda a aplicação.
     Decide o que mostrar baseado no estado do usuário (logado ou não).
     """
+    # Inicializa o estado da sessão
+    init_session_state()
+    
+    # Verifica se há um login persistente
+    if not st.session_state.auth:
+        check_persistent_login()
+    
     if not st.session_state.auth:
         # Usuário não está logado - mostra telas de autenticação
         if st.session_state.auth_mode == "login":
@@ -2734,14 +2781,13 @@ def main():
         page = st.session_state.get("page", "home")
         
         # Roteamento para as diferentes páginas
-        # Think of this as a TV remote - each button goes to a different channel
         if page == "home": 
             page_home(tx, stores)
         elif page == "kpis": 
             page_kpis(tx)
         elif page == "tendencias":
             page_tendencias(tx)
-        elif page == "graficos_cupons":  # NOVA PÁGINA
+        elif page == "graficos_cupons":
             page_graficos_cupons(tx)
         elif page == "fin": 
             page_financeiro(tx)
