@@ -825,7 +825,6 @@ NAV_ITEMS = [
     ("Home", "home"),
     ("Indicadores Executivos", "kpis"),
     ("Análise de Tendências", "tendencias"),
-    ("Gráficos Cupons", "graficos_cupons"),  # NOVA PÁGINA
     ("Financeiro", "fin"),
     ("Painel Econômico", "eco"),
     ("Uso de Cupons", "sim"),
@@ -1080,7 +1079,6 @@ def page_home(tx, stores):
         <ul>
             <li style="color: #333;"><strong>Indicadores Executivos:</strong> Métricas de alto nível para CEO, CTO e CFO.</li>
             <li style="color: #333;"><strong>Análise de Tendências:</strong> Padrões de consumo e comportamento por loja.</li>
-            <li style="color: #333;"><strong>Gráficos Cupons:</strong> Análise visual detalhada dos cupons e suas características.</li>
             <li style="color: #333;"><strong>Financeiro:</strong> Análise de DRE, ROI, ROIC e indicadores de rentabilidade.</li>
             <li style="color: #333;"><strong>Painel Econômico:</strong> Contexto macroeconômico (SELIC, IPCA e Inadimplência).</li>
             <li style="color: #333;"><strong>Uso de Cupons:</strong> Acompanhe seu progresso no nosso sistema de gamificação.</li>
@@ -1171,6 +1169,196 @@ def page_home(tx, stores):
     fig = style_fig(fig, y_fmt=",.2f")
     fig = time_axes_enhance(fig)
     st.plotly_chart(fig, use_container_width=True)
+
+    # ============ ADICIONAR AQUI O CONTEÚDO DOS GRÁFICOS DE CUPONS ============
+    st.markdown("---")
+    st.subheader("📈 Análise Detalhada de Cupons")
+    
+    # Carrega dados
+    df_cupons, get_cupons = normcols(tx)
+    
+    if df_cupons.empty:
+        st.info("Gerando dados de exemplo para demonstração.")
+        df_cupons = generate_example_data(num_rows=1000)
+        df_cupons, get_cupons = normcols(df_cupons)
+
+    st.markdown("""
+    <div style="background-color: #f0f2f6; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #e0e0e0;">
+        <p style="color: #333; font-size: 16px;">
+        Esta seção oferece uma análise visual detalhada dos seus cupons. Explore as relações entre 
+        <strong>valor dos cupons</strong>, <strong>valor das compras</strong>, <strong>lojas</strong> e 
+        <strong>tipos de estabelecimento</strong> através de gráficos interativos.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Verifica quais colunas existem
+    colunas_existentes = []
+    for coluna in ['valor_cupom', 'valor_compra', 'nome_loja', 'tipo_loja']:
+        if coluna in df_cupons.columns:
+            colunas_existentes.append(coluna)
+    
+    if not colunas_existentes:
+        st.error("""
+        ❌ Nenhuma das colunas procuradas (valor_cupom, valor_compra, nome_loja, tipo_loja) foi encontrada.
+        
+        **Colunas disponíveis no seu dataset:**
+        """)
+        st.write(list(df_cupons.columns))
+        return
+
+    st.success(f"✅ Colunas encontradas: {', '.join(colunas_existentes)}")
+
+    # Filtros interativos
+    st.markdown("### 🎛️ Filtros Interativos")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if 'nome_loja' in df_cupons.columns:
+            lojas_selecionadas = st.multiselect(
+                "🏪 Filtrar por Lojas",
+                options=df_cupons['nome_loja'].unique(),
+                default=df_cupons['nome_loja'].unique()[:5] if len(df_cupons['nome_loja'].unique()) > 5 else df_cupons['nome_loja'].unique(),
+                key="home_lojas"
+            )
+        else:
+            lojas_selecionadas = []
+    
+    with col2:
+        if 'tipo_loja' in df_cupons.columns:
+            tipos_selecionados = st.multiselect(
+                "📊 Filtrar por Tipo de Loja",
+                options=df_cupons['tipo_loja'].unique(),
+                default=df_cupons['tipo_loja'].unique(),
+                key="home_tipos"
+            )
+        else:
+            tipos_selecionados = []
+    
+    with col3:
+        # Filtro de valor
+        coluna_valor = 'valor_cupom' if 'valor_cupom' in df_cupons.columns else 'valor_compra'
+        if coluna_valor in df_cupons.columns:
+            min_valor = float(df_cupons[coluna_valor].min())
+            max_valor = float(df_cupons[coluna_valor].max())
+            valor_range = st.slider(
+                f"💰 Faixa de {coluna_valor.replace('_', ' ').title()}",
+                min_valor, max_valor, (min_valor, max_valor),
+                key="home_valor"
+            )
+
+    # Aplica filtros
+    df_filtrado = df_cupons.copy()
+    if 'nome_loja' in df_cupons.columns and lojas_selecionadas:
+        df_filtrado = df_filtrado[df_filtrado['nome_loja'].isin(lojas_selecionadas)]
+    if 'tipo_loja' in df_cupons.columns and tipos_selecionados:
+        df_filtrado = df_filtrado[df_filtrado['tipo_loja'].isin(tipos_selecionados)]
+    if coluna_valor in df_cupons.columns:
+        df_filtrado = df_filtrado[
+            (df_filtrado[coluna_valor] >= valor_range[0]) & 
+            (df_filtrado[coluna_valor] <= valor_range[1])
+        ]
+
+    # Abas para diferentes tipos de visualização
+    tab1, tab2, tab3 = st.tabs(["📊 Distribuições", "🏪 Análise por Loja", "📈 Relações"])
+
+    with tab1:
+        st.subheader("📊 Distribuições e Histogramas")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if 'valor_cupom' in df_filtrado.columns:
+                fig_cupom = px.histogram(
+                    df_filtrado, 
+                    x='valor_cupom',
+                    title="Distribuição do Valor dos Cupons",
+                    labels={'valor_cupom': 'Valor do Cupom (R$)'},
+                    color_discrete_sequence=[PRIMARY],
+                    nbins=20
+                )
+                fig_cupom.update_layout(
+                    xaxis_title="Valor do Cupom (R$)",
+                    yaxis_title="Frequência"
+                )
+                fig_cupom = style_fig(fig_cupom)
+                st.plotly_chart(fig_cupom, use_container_width=True)
+        
+        with col2:
+            if 'valor_compra' in df_filtrado.columns:
+                fig_compra = px.histogram(
+                    df_filtrado,
+                    x='valor_compra',
+                    title="Distribuição do Valor das Compras",
+                    labels={'valor_compra': 'Valor da Compra (R$)'},
+                    color_discrete_sequence=["#00CC96"],
+                    nbins=20
+                )
+                fig_compra.update_layout(
+                    xaxis_title="Valor da Compra (R$)",
+                    yaxis_title="Frequência"
+                )
+                fig_compra = style_fig(fig_compra)
+                st.plotly_chart(fig_compra, use_container_width=True)
+
+    with tab2:
+        st.subheader("🏪 Análise por Estabelecimento")
+        
+        if 'nome_loja' in df_filtrado.columns:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Top lojas por quantidade
+                top_lojas_qtd = df_filtrado['nome_loja'].value_counts().head(10)
+                fig_lojas_qtd = px.bar(
+                    top_lojas_qtd,
+                    x=top_lojas_qtd.values,
+                    y=top_lojas_qtd.index,
+                    orientation='h',
+                    title="Top 10 Lojas (Quantidade de Cupons)",
+                    labels={'x': 'Número de Cupons', 'y': 'Loja'},
+                    color_discrete_sequence=[PRIMARY],
+                    text_auto=True
+                )
+                fig_lojas_qtd.update_layout(showlegend=False)
+                fig_lojas_qtd = style_fig(fig_lojas_qtd)
+                st.plotly_chart(fig_lojas_qtd, use_container_width=True)
+            
+            with col2:
+                # Top lojas por valor médio
+                if 'valor_cupom' in df_filtrado.columns:
+                    lojas_valor_medio = df_filtrado.groupby('nome_loja')['valor_cupom'].mean().nlargest(10)
+                    fig_lojas_valor_medio = px.bar(
+                        lojas_valor_medio,
+                        x=lojas_valor_medio.values,
+                        y=lojas_valor_medio.index,
+                        orientation='h',
+                        title="Top 10 Lojas (Valor Médio do Cupom)",
+                        labels={'x': 'Valor Médio do Cupom (R$)', 'y': 'Loja'},
+                        color_discrete_sequence=["#AB63FA"],
+                        text_auto=',.2f'
+                    )
+                    fig_lojas_valor_medio.update_layout(showlegend=False)
+                    fig_lojas_valor_medio = style_fig(fig_lojas_valor_medio)
+                    st.plotly_chart(fig_lojas_valor_medio, use_container_width=True)
+
+    with tab3:
+        st.subheader("📈 Relações e Correlações")
+        
+        # Scatter plot valor_compra vs valor_cupom
+        if 'valor_compra' in df_filtrado.columns and 'valor_cupom' in df_filtrado.columns:
+            fig_scatter = px.scatter(
+                df_filtrado.sample(n=min(500, len(df_filtrado))),
+                x='valor_compra',
+                y='valor_cupom',
+                title="Relação: Valor da Compra vs Valor do Cupom",
+                labels={'valor_compra': 'Valor da Compra (R$)', 'valor_cupom': 'Valor do Cupom (R$)'},
+                trendline="lowess",
+                opacity=0.6
+            )
+            fig_scatter.update_traces(marker=dict(size=8))
+            fig_scatter = style_fig(fig_scatter)
+            st.plotly_chart(fig_scatter, use_container_width=True)
 
 def page_kpis(tx):
     """
@@ -1952,346 +2140,6 @@ def page_eco():
             fig = time_axes_enhance(fig)
             st.plotly_chart(fig, use_container_width=True)
 
-# NOVA PÁGINA: Gráficos com valor_cupom, valor_compra, nome_loja, tipo_loja
-def page_graficos_cupons(tx):
-    """
-    Página específica para gráficos usando valor_cupom, valor_compra, nome_loja, tipo_loja
-    """
-    top_header()
-    hero("📈 Análise Detalhada de Cupons", "Visualizações interativas dos dados de cupons e compras")
-
-    # Carrega dados
-    df, get = normcols(tx)
-    
-    if df.empty:
-        st.info("Gerando dados de exemplo para demonstração.")
-        df = generate_example_data(num_rows=1000)
-        df, get = normcols(df)
-
-    st.markdown("""
-    <div style="background-color: #f0f2f6; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #e0e0e0;">
-        <p style="color: #333; font-size: 16px;">
-        Esta página oferece uma análise visual detalhada dos seus cupons. Explore as relações entre 
-        <strong>valor dos cupons</strong>, <strong>valor das compras</strong>, <strong>lojas</strong> e 
-        <strong>tipos de estabelecimento</strong> através de gráficos interativos.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Verifica quais colunas existem
-    colunas_existentes = []
-    for coluna in ['valor_cupom', 'valor_compra', 'nome_loja', 'tipo_loja']:
-        if coluna in df.columns:
-            colunas_existentes.append(coluna)
-    
-    if not colunas_existentes:
-        st.error("""
-        ❌ Nenhuma das colunas procuradas (valor_cupom, valor_compra, nome_loja, tipo_loja) foi encontrada.
-        
-        **Colunas disponíveis no seu dataset:**
-        """)
-        st.write(list(df.columns))
-        return
-
-    st.success(f"✅ Colunas encontradas: {', '.join(colunas_existentes)}")
-
-    # Filtros interativos
-    st.markdown("### 🎛️ Filtros Interativos")
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        if 'nome_loja' in df.columns:
-            lojas_selecionadas = st.multiselect(
-                "🏪 Filtrar por Lojas",
-                options=df['nome_loja'].unique(),
-                default=df['nome_loja'].unique()[:5] if len(df['nome_loja'].unique()) > 5 else df['nome_loja'].unique()
-            )
-        else:
-            lojas_selecionadas = []
-    
-    with col2:
-        if 'tipo_loja' in df.columns:
-            tipos_selecionados = st.multiselect(
-                "📊 Filtrar por Tipo de Loja",
-                options=df['tipo_loja'].unique(),
-                default=df['tipo_loja'].unique()
-            )
-        else:
-            tipos_selecionados = []
-    
-    with col3:
-        # Filtro de valor
-        coluna_valor = 'valor_cupom' if 'valor_cupom' in df.columns else 'valor_compra'
-        if coluna_valor in df.columns:
-            min_valor = float(df[coluna_valor].min())
-            max_valor = float(df[coluna_valor].max())
-            valor_range = st.slider(
-                f"💰 Faixa de {coluna_valor.replace('_', ' ').title()}",
-                min_valor, max_valor, (min_valor, max_valor)
-            )
-
-    # Aplica filtros
-    df_filtrado = df.copy()
-    if 'nome_loja' in df.columns and lojas_selecionadas:
-        df_filtrado = df_filtrado[df_filtrado['nome_loja'].isin(lojas_selecionadas)]
-    if 'tipo_loja' in df.columns and tipos_selecionados:
-        df_filtrado = df_filtrado[df_filtrado['tipo_loja'].isin(tipos_selecionados)]
-    if coluna_valor in df.columns:
-        df_filtrado = df_filtrado[
-            (df_filtrado[coluna_valor] >= valor_range[0]) & 
-            (df_filtrado[coluna_valor] <= valor_range[1])
-        ]
-
-    # Abas para diferentes tipos de visualização
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Distribuições", "🏪 Análise por Loja", "📈 Relações", "📋 Resumo"])
-
-    with tab1:
-        st.subheader("📊 Distribuições e Histogramas")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if 'valor_cupom' in df_filtrado.columns:
-                fig_cupom = px.histogram(
-                    df_filtrado, 
-                    x='valor_cupom',
-                    title="Distribuição do Valor dos Cupons",
-                    labels={'valor_cupom': 'Valor do Cupom (R$)'},
-                    color_discrete_sequence=[PRIMARY],
-                    nbins=20
-                )
-                fig_cupom.update_layout(
-                    xaxis_title="Valor do Cupom (R$)",
-                    yaxis_title="Frequência"
-                )
-                fig_cupom = style_fig(fig_cupom)
-                st.plotly_chart(fig_cupom, use_container_width=True)
-        
-        with col2:
-            if 'valor_compra' in df_filtrado.columns:
-                fig_compra = px.histogram(
-                    df_filtrado,
-                    x='valor_compra',
-                    title="Distribuição do Valor das Compras",
-                    labels={'valor_compra': 'Valor da Compra (R$)'},
-                    color_discrete_sequence=["#00CC96"],
-                    nbins=20
-                )
-                fig_compra.update_layout(
-                    xaxis_title="Valor da Compra (R$)",
-                    yaxis_title="Frequência"
-                )
-                fig_compra = style_fig(fig_compra)
-                st.plotly_chart(fig_compra, use_container_width=True)
-
-        # Box plots
-        col1, col2 = st.columns(2)
-        with col1:
-            if 'valor_cupom' in df_filtrado.columns and 'nome_loja' in df_filtrado.columns:
-                # Top 10 lojas para o box plot
-                top_lojas = df_filtrado['nome_loja'].value_counts().head(10).index
-                df_top = df_filtrado[df_filtrado['nome_loja'].isin(top_lojas)]
-                
-                fig_box_cupom = px.box(
-                    df_top,
-                    x='nome_loja',
-                    y='valor_cupom',
-                    title="Distribuição do Valor dos Cupons por Loja (Top 10)",
-                    labels={'nome_loja': 'Loja', 'valor_cupom': 'Valor do Cupom (R$)'}
-                )
-                fig_box_cupom = style_fig(fig_box_cupom)
-                st.plotly_chart(fig_box_cupom, use_container_width=True)
-        
-        with col2:
-            if 'valor_compra' in df_filtrado.columns and 'nome_loja' in df_filtrado.columns:
-                fig_box_compra = px.box(
-                    df_top,
-                    x='nome_loja',
-                    y='valor_compra',
-                    title="Distribuição do Valor das Compras por Loja (Top 10)",
-                    labels={'nome_loja': 'Loja', 'valor_compra': 'Valor da Compra (R$)'},
-                    color_discrete_sequence=["#FFA15A"]
-                )
-                fig_box_compra = style_fig(fig_box_compra)
-                st.plotly_chart(fig_box_compra, use_container_width=True)
-
-    with tab2:
-        st.subheader("🏪 Análise por Estabelecimento")
-        
-        if 'nome_loja' in df_filtrado.columns:
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Top lojas por quantidade
-                top_lojas_qtd = df_filtrado['nome_loja'].value_counts().head(10)
-                fig_lojas_qtd = px.bar(
-                    top_lojas_qtd,
-                    x=top_lojas_qtd.values,
-                    y=top_lojas_qtd.index,
-                    orientation='h',
-                    title="Top 10 Lojas (Quantidade de Cupons)",
-                    labels={'x': 'Número de Cupons', 'y': 'Loja'},
-                    color_discrete_sequence=[PRIMARY],
-                    text_auto=True
-                )
-                fig_lojas_qtd.update_layout(showlegend=False)
-                fig_lojas_qtd = style_fig(fig_lojas_qtd)
-                st.plotly_chart(fig_lojas_qtd, use_container_width=True)
-            
-            with col2:
-                # Top lojas por valor médio
-                if 'valor_cupom' in df_filtrado.columns:
-                    lojas_valor_medio = df_filtrado.groupby('nome_loja')['valor_cupom'].mean().nlargest(10)
-                    fig_lojas_valor_medio = px.bar(
-                        lojas_valor_medio,
-                        x=lojas_valor_medio.values,
-                        y=lojas_valor_medio.index,
-                        orientation='h',
-                        title="Top 10 Lojas (Valor Médio do Cupom)",
-                        labels={'x': 'Valor Médio do Cupom (R$)', 'y': 'Loja'},
-                        color_discrete_sequence=["#AB63FA"],
-                        text_auto=',.2f'
-                    )
-                    fig_lojas_valor_medio.update_layout(showlegend=False)
-                    fig_lojas_valor_medio = style_fig(fig_lojas_valor_medio)
-                    st.plotly_chart(fig_lojas_valor_medio, use_container_width=True)
-
-        if 'tipo_loja' in df_filtrado.columns:
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Distribuição por tipo de loja
-                tipos_dist = df_filtrado['tipo_loja'].value_counts()
-                fig_tipos = px.pie(
-                    tipos_dist,
-                    values=tipos_dist.values,
-                    names=tipos_dist.index,
-                    title="Distribuição por Tipo de Loja",
-                    hole=0.4
-                )
-                fig_tipos.update_traces(textposition='inside', textinfo='percent+label')
-                fig_tipos = style_fig(fig_tipos)
-                st.plotly_chart(fig_tipos, use_container_width=True)
-            
-            with col2:
-                # Valor médio por tipo de loja
-                if 'valor_cupom' in df_filtrado.columns:
-                    valor_por_tipo = df_filtrado.groupby('tipo_loja')['valor_cupom'].mean().sort_values(ascending=False)
-                    fig_valor_tipo = px.bar(
-                        valor_por_tipo,
-                        x=valor_por_tipo.index,
-                        y=valor_por_tipo.values,
-                        title="Valor Médio do Cupom por Tipo de Loja",
-                        labels={'x': 'Tipo de Loja', 'y': 'Valor Médio do Cupom (R$)'},
-                        color_discrete_sequence=["#00CC96"],
-                        text_auto=',.2f'
-                    )
-                    fig_valor_tipo = style_fig(fig_valor_tipo)
-                    st.plotly_chart(fig_valor_tipo, use_container_width=True)
-
-    with tab3:
-        st.subheader("📈 Relações e Correlações")
-        
-        # Scatter plot valor_compra vs valor_cupom
-        if 'valor_compra' in df_filtrado.columns and 'valor_cupom' in df_filtrado.columns:
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                fig_scatter = px.scatter(
-                    df_filtrado.sample(n=min(500, len(df_filtrado))),
-                    x='valor_compra',
-                    y='valor_cupom',
-                    title="Relação: Valor da Compra vs Valor do Cupom",
-                    labels={'valor_compra': 'Valor da Compra (R$)', 'valor_cupom': 'Valor do Cupom (R$)'},
-                    trendline="lowess",
-                    opacity=0.6
-                )
-                fig_scatter.update_traces(marker=dict(size=8))
-                fig_scatter = style_fig(fig_scatter)
-                st.plotly_chart(fig_scatter, use_container_width=True)
-            
-            with col2:
-                # Estatísticas de correlação
-                correlacao = df_filtrado[['valor_compra', 'valor_cupom']].corr().iloc[0,1]
-                st.metric("Correlação", f"{correlacao:.3f}")
-                
-                st.markdown("**📊 Estatísticas:**")
-                stats_data = {
-                    'Métrica': ['Valor Médio Compra', 'Valor Médio Cupom', 'Maior Compra', 'Maior Cupom'],
-                    'Valor (R$)': [
-                        f"{df_filtrado['valor_compra'].mean():.2f}",
-                        f"{df_filtrado['valor_cupom'].mean():.2f}",
-                        f"{df_filtrado['valor_compra'].max():.2f}",
-                        f"{df_filtrado['valor_cupom'].max():.2f}"
-                    ]
-                }
-                st.dataframe(pd.DataFrame(stats_data), use_container_width=True)
-
-        # Heatmap de correlações se houver múltiplas colunas numéricas
-        colunas_numericas = df_filtrado.select_dtypes(include=[np.number]).columns
-        if len(colunas_numericas) > 1:
-            st.subheader("🔥 Mapa de Correlações")
-            correlacao_matrix = df_filtrado[colunas_numericas].corr()
-            fig_heatmap = px.imshow(
-                correlacao_matrix,
-                title="Mapa de Correlação entre Variáveis Numéricas",
-                color_continuous_scale="RdBu_r",
-                aspect="auto"
-            )
-            fig_heatmap = style_fig(fig_heatmap)
-            st.plotly_chart(fig_heatmap, use_container_width=True)
-
-    with tab4:
-        st.subheader("📋 Resumo Estatístico")
-        
-        # Estatísticas descritivas
-        if 'valor_cupom' in df_filtrado.columns or 'valor_compra' in df_filtrado.columns:
-            st.markdown("#### 📊 Estatísticas Descritivas")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            if 'valor_cupom' in df_filtrado.columns:
-                stats_cupom = df_filtrado['valor_cupom'].describe()
-                with col1:
-                    st.metric("Média Cupom", f"R$ {stats_cupom['mean']:.2f}")
-                with col2:
-                    st.metric("Mediana Cupom", f"R$ {stats_cupom['50%']:.2f}")
-            
-            if 'valor_compra' in df_filtrado.columns:
-                stats_compra = df_filtrado['valor_compra'].describe()
-                with col3:
-                    st.metric("Média Compra", f"R$ {stats_compra['mean']:.2f}")
-                with col4:
-                    st.metric("Mediana Compra", f"R$ {stats_compra['50%']:.2f}")
-        
-        # Tabela de resumo
-        st.markdown("#### 📋 Dados Filtrados")
-        
-        # Mostra métricas gerais
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total de Registros", len(df_filtrado))
-        with col2:
-            if 'nome_loja' in df_filtrado.columns:
-                st.metric("Lojas Únicas", df_filtrado['nome_loja'].nunique())
-        with col3:
-            if 'tipo_loja' in df_filtrado.columns:
-                st.metric("Tipos de Loja", df_filtrado['tipo_loja'].nunique())
-        
-        # Amostra dos dados
-        with st.expander("🔍 Visualizar Amostra dos Dados Filtrados"):
-            colunas_para_mostrar = [col for col in colunas_existentes if col in df_filtrado.columns]
-            st.dataframe(df_filtrado[colunas_para_mostrar].head(10), use_container_width=True)
-            
-            # Botão para download
-            csv = df_filtrado[colunas_para_mostrar].to_csv(index=False)
-            st.download_button(
-                label="📥 Download dos Dados Filtrados (CSV)",
-                data=csv,
-                file_name="dados_cupons_filtrados.csv",
-                mime="text/csv"
-            )
-
 def page_simulacaologin():
     """
     Página de gamificação - onde usuários acompanham seu progresso.
@@ -2887,8 +2735,6 @@ def main():
             page_kpis(tx)
         elif page == "tendencias":
             page_tendencias(tx)
-        elif page == "graficos_cupons":
-            page_graficos_cupons(tx)
         elif page == "fin": 
             page_financeiro(tx)
         elif page == "eco": 
