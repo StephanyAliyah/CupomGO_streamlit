@@ -1092,7 +1092,7 @@ def page_home(tx, stores):
     # Carrega e prepara os dados
     df, get = normcols(tx)
     
-    # Se não há dados reais, cria dados de exemplo para demonstração
+    # Se não há dados realais, cria dados de exemplo para demonstração
     if df.empty:
         st.info("Nenhum dado encontrado. A carregar dados de exemplo.")
         df = generate_example_data(num_rows=2500)
@@ -1887,7 +1887,13 @@ def page_financeiro(tx):
     cum  = c1.checkbox("📈 Mostrar acumulado", False, key="fin_cum")
     pts  = c2.checkbox("● Marcadores", True, key="fin_pts")
 
-    tabs = st.tabs(["Receita", "Ticket", "Lucro", "ROI"])
+    # ATUALIZAÇÃO: Adicionar legendas explicativas nas abas
+    tabs = st.tabs([
+        "💰 Receita - Valor total das vendas", 
+        "🎫 Ticket - Valor médio por transação", 
+        "💸 Lucro - Receita menos custos", 
+        "📈 ROI - Retorno sobre investimento"
+    ])
 
     def _line(df_, y, title, yfmt=",.2f", color=PRIMARY):
         fig = px.line(df_, x="Periodo", y=y, title=title, labels={"Periodo":"Período", y:y},
@@ -1902,18 +1908,58 @@ def page_financeiro(tx):
         if cum:
             dfp["Receita"] = dfp["Receita"].cumsum()
         st.plotly_chart(_line(dfp, "Receita", "Receita Total por Período"), use_container_width=True)
+        
+        # Legenda adicional para Receita
+        st.markdown("""
+        <div style="background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-top: 10px; border-left: 4px solid #0C2D6B;">
+            <p style="color: #333; font-size: 14px; margin: 0;">
+            <strong>💰 Receita:</strong> Valor total gerado pelas vendas com cupons. 
+            Representa o faturamento bruto antes de deduzir custos e despesas.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
     with tabs[1]:
         st.plotly_chart(_line(resumo, "Ticket", "Ticket Médio por Período"), use_container_width=True)
+        
+        # Legenda adicional para Ticket
+        st.markdown("""
+        <div style="background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-top: 10px; border-left: 4px solid #0C2D6B;">
+            <p style="color: #333; font-size: 14px; margin: 0;">
+            <strong>🎫 Ticket Médio:</strong> Valor médio de cada transação. 
+            Indica o poder de compra dos clientes e a eficácia dos cupons em gerar vendas de maior valor.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
     with tabs[2]:
         dfp = resumo.copy()
         if cum:
             dfp["Lucro"] = dfp["Lucro"].cumsum()
         st.plotly_chart(_line(dfp, "Lucro", "Lucro Estimado por Período"), use_container_width=True)
+        
+        # Legenda adicional para Lucro
+        st.markdown("""
+        <div style="background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-top: 10px; border-left: 4px solid #0C2D6B;">
+            <p style="color: #333; font-size: 14px; margin: 0;">
+            <strong>💸 Lucro:</strong> Resultado financeiro após deduzir todos os custos da receita. 
+            Calculado como Receita × 65% (considerando 35% de custos operacionais).
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
     with tabs[3]:
         st.plotly_chart(_line(resumo, "ROI", "ROI (%) por Período", yfmt=",.2f", color="#7E7E7E"), use_container_width=True)
+        
+        # Legenda adicional para ROI
+        st.markdown("""
+        <div style="background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-top: 10px; border-left: 4px solid #0C2D6B;">
+            <p style="color: #333; font-size: 14px; margin: 0;">
+            <strong>📈 ROI (Return on Investment):</strong> Percentual de retorno sobre o investimento em marketing. 
+            Calculado como (Lucro / Investimento) × 100, onde o investimento é estimado em 35% da receita.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
 def page_eco():
     """
