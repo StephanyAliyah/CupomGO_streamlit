@@ -1486,11 +1486,26 @@ def page_tendencias(tx):
         st.error(f"Erro ao processar os dados: {e}")
         return
 
-    # Abas para diferentes tipos de análise
-    tab1, tab2, tab3 = st.tabs(["📊 Tendências Temporais", "🏪 Comportamento por Loja", "🎯 Padrões de Consumo"])
+    # Abas para diferentes tipos de análise COM LEGENDAS EXPLICATIVAS
+    tab1, tab2, tab3 = st.tabs([
+        "📊 Tendências Temporais - Evolução ao longo do tempo", 
+        "🏪 Comportamento por Loja - Desempenho por estabelecimento", 
+        "🎯 Padrões de Consumo - Hábitos e preferências"
+    ])
 
     with tab1:
         st.subheader("Tendências Temporais de Uso")
+        
+        # LEGENDA EXPLICATIVA PARA A ABA DE TENDÊNCIAS TEMPORAIS
+        st.markdown("""
+        <div style="background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px; border-left: 4px solid #0C2D6B;">
+            <p style="color: #333; font-size: 14px; margin: 0;">
+            <strong>📊 Tendências Temporais:</strong> Analise a evolução do uso de cupons ao longo do tempo. 
+            Identifique sazonalidades, picos de demanda e tendências de crescimento. Use os filtros abaixo 
+            para ajustar o período de análise.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Agrupa dados por mês
         uso_mensal = df.groupby('Mês').agg(
@@ -1498,31 +1513,71 @@ def page_tendencias(tx):
             Cupons=(vcol, 'count')
         ).reset_index()
         
-        # Gráfico de receita vs volume
-        fig_mensal = go.Figure()
-        fig_mensal.add_trace(go.Bar(
-            x=uso_mensal['Mês'], y=uso_mensal['Receita'], name='Receita (R$)',
-            marker_color=PRIMARY, yaxis='y1'
-        ))
-        fig_mensal.add_trace(go.Scatter(
-            x=uso_mensal['Mês'], y=uso_mensal['Cupons'], name='Volume (Cupons)',
-            mode='lines+markers', line=dict(color='#f59e0b', width=3), yaxis='y2'
-        ))
-        
-        fig_mensal.update_layout(
-            title="Evolução Mensal: Receita (Barras) e Volume (Linha)",
-            xaxis_title="Mês",
-            yaxis=dict(title='Receita (R$)'),
-            yaxis2=dict(title='Volume de Cupons', overlaying='y', side='right'),
-            legend=dict(orientation="h", yanchor="bottom", y=-0.4)
-        )
-        fig_mensal = style_fig(fig_mensal, y_fmt=",.2f")
-        fig_mensal = time_axes_enhance(fig_mensal)
-        st.plotly_chart(fig_mensal, use_container_width=True)
+        # Container para o gráfico de evolução mensal com filtros
+        with st.container():
+            st.markdown("#### Evolução Mensal - Receita vs Volume")
+            
+            # FILTRO POR TEMPO substituindo os botões 1m, 3m, 6m, 1ano
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                # Filtro de data personalizado
+                st.markdown("**⏱️ Filtro de Período**")
+                data_min = df[dcol].min()
+                data_max = df[dcol].max()
+                
+                # Selecionador de intervalo de datas
+                data_inicio = st.date_input(
+                    "Data inicial",
+                    value=data_min,
+                    min_value=data_min,
+                    max_value=data_max,
+                    key="tendencias_data_inicio"
+                )
+                data_fim = st.date_input(
+                    "Data final", 
+                    value=data_max,
+                    min_value=data_min,
+                    max_value=data_max,
+                    key="tendencias_data_fim"
+                )
+                
+                # Aplicar filtro de data
+                if data_inicio and data_fim:
+                    mask = (df[dcol] >= pd.to_datetime(data_inicio)) & (df[dcol] <= pd.to_datetime(data_fim))
+                    df_filtrado = df.loc[mask]
+                    uso_mensal_filtrado = df_filtrado.groupby('Mês').agg(
+                        Receita=(vcol, 'sum'),
+                        Cupons=(vcol, 'count')
+                    ).reset_index()
+                else:
+                    uso_mensal_filtrado = uso_mensal
+            
+            # Gráfico de receita vs volume
+            fig_mensal = go.Figure()
+            fig_mensal.add_trace(go.Bar(
+                x=uso_mensal_filtrado['Mês'], y=uso_mensal_filtrado['Receita'], name='Receita (R$)',
+                marker_color=PRIMARY, yaxis='y1'
+            ))
+            fig_mensal.add_trace(go.Scatter(
+                x=uso_mensal_filtrado['Mês'], y=uso_mensal_filtrado['Cupons'], name='Volume (Cupons)',
+                mode='lines+markers', line=dict(color='#f59e0b', width=3), yaxis='y2'
+            ))
+            
+            fig_mensal.update_layout(
+                title="Evolução Mensal: Receita (Barras) e Volume (Linha)",
+                xaxis_title="Mês",
+                yaxis=dict(title='Receita (R$)'),
+                yaxis2=dict(title='Volume de Cupons', overlaying='y', side='right'),
+                legend=dict(orientation="h", yanchor="bottom", y=-0.4)
+            )
+            fig_mensal = style_fig(fig_mensal, y_fmt=",.2f")
+            fig_mensal = time_axes_enhance(fig_mensal)
+            st.plotly_chart(fig_mensal, use_container_width=True)
 
         # Gráficos de dia da semana e hora
         col1, col2 = st.columns(2)
         with col1:
+            st.markdown("#### Volume por Dia da Semana")
             uso_diario = df.groupby(['Dia_Semana_Num', 'Dia_Semana']).size().reset_index(name='Cupons').sort_values('Dia_Semana_Num')
             fig_diario = px.bar(
                 uso_diario, x='Dia_Semana', y='Cupons',
@@ -1534,6 +1589,7 @@ def page_tendencias(tx):
             st.plotly_chart(fig_diario, use_container_width=True)
         
         with col2:
+            st.markdown("#### Volume por Hora do Dia")
             uso_hora = df.groupby('Hora').size().reset_index(name='Cupons')
             fig_hora = px.bar(
                 uso_hora, x='Hora', y='Cupons',
@@ -1546,6 +1602,16 @@ def page_tendencias(tx):
 
     with tab2:
         st.subheader("Comportamento por Estabelecimento")
+        
+        # LEGENDA EXPLICATIVA PARA A ABA DE COMPORTAMENTO POR LOJA
+        st.markdown("""
+        <div style="background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px; border-left: 4px solid #0C2D6B;">
+            <p style="color: #333; font-size: 14px; margin: 0;">
+            <strong>🏪 Comportamento por Loja:</strong> Compare o desempenho entre diferentes estabelecimentos. 
+            Identifique as lojas que geram mais receita, maior volume de transações e ticket médio mais elevado.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
         
@@ -1608,6 +1674,17 @@ def page_tendencias(tx):
     with tab3:
         st.subheader("Padrões de Consumo e Eficiência")
         
+        # LEGENDA EXPLICATIVA PARA A ABA DE PADRÕES DE CONSUMO
+        st.markdown("""
+        <div style="background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px; border-left: 4px solid #0C2D6B;">
+            <p style="color: #333; font-size: 14px; margin: 0;">
+            <strong>🎯 Padrões de Consumo:</strong> Entenda os hábitos e preferências dos seus clientes. 
+            Analise quais tipos de cupom são mais populares, como o valor das compras se distribui 
+            e identifique oportunidades de otimização.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         col1, col2 = st.columns(2)
         
         with col1:
@@ -1635,6 +1712,7 @@ def page_tendencias(tx):
             
         
         # Box plot de distribuição de valores
+        st.markdown("#### Distribuição de Valores por Loja e Tipo de Cupom")
         df_sample = df.sample(n=min(2000, len(df)))  # Amostra para performance
         top_10_lojas = df[scol].value_counts().nlargest(10).index
         df_sample_top10 = df_sample[df_sample[scol].isin(top_10_lojas)]
