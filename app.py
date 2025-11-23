@@ -1501,65 +1501,29 @@ def page_tendencias(tx):
         <div style="background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px; border-left: 4px solid #0C2D6B;">
             <p style="color: #333; font-size: 14px; margin: 0;">
             <strong>📊 Tendências Temporais:</strong> Analise a evolução do uso de cupons ao longo do tempo. 
-            Identifique sazonalidades, picos de demanda e tendências de crescimento. Use os filtros abaixo 
-            para ajustar o período de análise.
+            Identifique sazonalidades, picos de demanda e tendências de crescimento.
             </p>
         </div>
         """, unsafe_allow_html=True)
         
-        # Agrupa dados por mês
+        # Agrupa dados por mês (SEM FILTRO DE PERÍODO)
         uso_mensal = df.groupby('Mês').agg(
             Receita=(vcol, 'sum'),
             Cupons=(vcol, 'count')
         ).reset_index()
         
-        # Container para o gráfico de evolução mensal com filtros
+        # Container para o gráfico de evolução mensal (SEM FILTROS)
         with st.container():
             st.markdown("#### Evolução Mensal - Receita vs Volume")
             
-            # FILTRO POR TEMPO substituindo os botões 1m, 3m, 6m, 1ano
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                # Filtro de data personalizado
-                st.markdown("**⏱️ Filtro de Período**")
-                data_min = df[dcol].min()
-                data_max = df[dcol].max()
-                
-                # Selecionador de intervalo de datas
-                data_inicio = st.date_input(
-                    "Data inicial",
-                    value=data_min,
-                    min_value=data_min,
-                    max_value=data_max,
-                    key="tendencias_data_inicio"
-                )
-                data_fim = st.date_input(
-                    "Data final", 
-                    value=data_max,
-                    min_value=data_min,
-                    max_value=data_max,
-                    key="tendencias_data_fim"
-                )
-                
-                # Aplicar filtro de data
-                if data_inicio and data_fim:
-                    mask = (df[dcol] >= pd.to_datetime(data_inicio)) & (df[dcol] <= pd.to_datetime(data_fim))
-                    df_filtrado = df.loc[mask]
-                    uso_mensal_filtrado = df_filtrado.groupby('Mês').agg(
-                        Receita=(vcol, 'sum'),
-                        Cupons=(vcol, 'count')
-                    ).reset_index()
-                else:
-                    uso_mensal_filtrado = uso_mensal
-            
-            # Gráfico de receita vs volume
+            # Gráfico de receita vs volume (SEM FILTRO DE DATA)
             fig_mensal = go.Figure()
             fig_mensal.add_trace(go.Bar(
-                x=uso_mensal_filtrado['Mês'], y=uso_mensal_filtrado['Receita'], name='Receita (R$)',
+                x=uso_mensal['Mês'], y=uso_mensal['Receita'], name='Receita (R$)',
                 marker_color=PRIMARY, yaxis='y1'
             ))
             fig_mensal.add_trace(go.Scatter(
-                x=uso_mensal_filtrado['Mês'], y=uso_mensal_filtrado['Cupons'], name='Volume (Cupons)',
+                x=uso_mensal['Mês'], y=uso_mensal['Cupons'], name='Volume (Cupons)',
                 mode='lines+markers', line=dict(color='#f59e0b', width=3), yaxis='y2'
             ))
             
