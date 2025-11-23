@@ -1080,7 +1080,7 @@ def page_home(tx, stores):
         <ul>
             <li style="color: #333;"><strong>Indicadores Executivos:</strong> Métricas de alto nível para CEO, CTO e CFO.</li>
             <li style="color: #333;"><strong>Análise de Tendências:</strong> Padrões de consumo e comportamento por loja.</li>
-            <li style="color: #333;"><strong>Gráficos Cupons:</strong> Análise visual usando valor_cupom, valor_compra, nome_loja e tipo_loja.</li>
+            <li style="color: #333;"><strong>Grafícos Cupons:</strong> Análise visual usando valor_cupom, valor_compra, nome_loja e tipo_loja.</li>
             <li style="color: #333;"><strong>Financeiro:</strong> Análise de DRE, ROI, ROIC e indicadores de rentabilidade.</li>
             <li style="color: #333;"><strong>Painel Econômico:</strong> Contexto macroeconômico (SELIC, IPCA e Inadimplência).</li>
             <li style="color: #333;"><strong>Uso de Cupons:</strong> Acompanhe seu progresso no nosso sistema de gamificação.</li>
@@ -1171,130 +1171,6 @@ def page_home(tx, stores):
     fig = style_fig(fig, y_fmt=",.2f")
     fig = time_axes_enhance(fig)
     st.plotly_chart(fig, use_container_width=True)
-
-    # ============ NOVO GRÁFICO DE CUPONS NA HOME ============
-    st.markdown("---")
-    st.subheader("📊 Gráfico de Cupons - Visão Geral")
-    
-    # Verifica se temos as colunas específicas para o gráfico de cupons
-    colunas_cupom = ['valor_cupom', 'valor_compra', 'nome_loja', 'tipo_loja']
-    colunas_existentes = [col for col in colunas_cupom if col in df.columns]
-    
-    if colunas_existentes:
-        st.success(f"✅ Colunas de cupons encontradas: {', '.join(colunas_existentes)}")
-        
-        # Layout para os gráficos de cupons
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Gráfico 1: Distribuição de valor_cupom ou valor_compra
-            if 'valor_cupom' in df.columns or 'valor_compra' in df.columns:
-                coluna_valor = 'valor_cupom' if 'valor_cupom' in df.columns else 'valor_compra'
-                
-                fig_distribuicao = px.histogram(
-                    df, 
-                    x=coluna_valor,
-                    title=f"Distribuição de {coluna_valor.replace('_', ' ').title()}",
-                    labels={coluna_valor: coluna_valor.replace('_', ' ').title()},
-                    color_discrete_sequence=[PRIMARY],
-                    nbins=20
-                )
-                fig_distribuicao = style_fig(fig_distribuicao)
-                st.plotly_chart(fig_distribuicao, use_container_width=True)
-        
-        with col2:
-            # Gráfico 2: Top lojas (se disponível)
-            if 'nome_loja' in df.columns:
-                top_lojas = df['nome_loja'].value_counts().head(10)
-                fig_lojas = px.bar(
-                    top_lojas,
-                    x=top_lojas.values,
-                    y=top_lojas.index,
-                    orientation='h',
-                    title="Top 10 Lojas (Volume de Cupons)",
-                    labels={'x': 'Número de Cupons', 'y': 'Loja'},
-                    color_discrete_sequence=["#00CC96"]
-                )
-                fig_lojas = style_fig(fig_lojas)
-                st.plotly_chart(fig_lojas, use_container_width=True)
-        
-        # Gráfico 3: Evolução temporal dos cupons
-        if 'valor_cupom' in df.columns or 'valor_compra' in df.columns:
-            coluna_valor = 'valor_cupom' if 'valor_cupom' in df.columns else 'valor_compra'
-            
-            # Agrupa por período temporal
-            evolucao = df.groupby("Periodo").agg({
-                coluna_valor: ['sum', 'count']
-            }).reset_index()
-            evolucao.columns = ['Periodo', 'Valor_Total', 'Quantidade_Cupons']
-            
-            fig_evolucao = go.Figure()
-            fig_evolucao.add_trace(go.Scatter(
-                x=evolucao['Periodo'], 
-                y=evolucao['Valor_Total'],
-                name=f"Valor Total ({coluna_valor.replace('_', ' ')})",
-                line=dict(width=3, color=PRIMARY)
-            ))
-            fig_evolucao.add_trace(go.Scatter(
-                x=evolucao['Periodo'], 
-                y=evolucao['Quantidade_Cupons'],
-                name="Quantidade de Cupons",
-                yaxis="y2",
-                line=dict(width=2, color="#FFA15A", dash="dash")
-            ))
-            
-            fig_evolucao.update_layout(
-                title=f"Evolução do Valor e Quantidade de Cupons",
-                xaxis_title="Período",
-                yaxis=dict(title=f"Valor Total ({coluna_valor.replace('_', ' ')})"),
-                yaxis2=dict(
-                    title="Quantidade de Cupons",
-                    overlaying="y",
-                    side="right"
-                )
-            )
-            fig_evolucao = style_fig(fig_evolucao)
-            fig_evolucao = time_axes_enhance(fig_evolucao)
-            st.plotly_chart(fig_evolucao, use_container_width=True)
-        
-        # Gráfico 4: Distribuição por tipo de loja (se disponível)
-        if 'tipo_loja' in df.columns:
-            tipos_loja = df['tipo_loja'].value_counts()
-            fig_tipos = px.pie(
-                tipos_loja,
-                values=tipos_loja.values,
-                names=tipos_loja.index,
-                title="Distribuição por Tipo de Loja",
-                hole=0.4
-            )
-            fig_tipos = style_fig(fig_tipos)
-            st.plotly_chart(fig_tipos, use_container_width=True)
-            
-    else:
-        st.info("""
-        ℹ️ **Para ver gráficos detalhados de cupons:**
-        - Certifique-se de que seus dados contenham colunas como 'valor_cupom', 'valor_compra', 'nome_loja', 'tipo_loja'
-        - Ou acesse a página específica **'Gráficos Cupons'** no menu lateral para análise completa
-        """)
-        
-        # Mostra estatísticas básicas mesmo sem as colunas específicas
-        if not df.empty:
-            st.subheader("📈 Estatísticas Básicas dos Dados")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Total de Registros", f"{len(df):,}")
-            with col2:
-                if vcol and vcol in df.columns:
-                    st.metric("Valor Médio", f"R$ {df[vcol].mean():.2f}")
-            with col3:
-                if dcol and dcol in df.columns:
-                    periodo_min = df[dcol].min().strftime("%d/%m/%Y") if pd.notna(df[dcol].min()) else "N/A"
-                    st.metric("Período Inicial", periodo_min)
-            with col4:
-                if dcol and dcol in df.columns:
-                    periodo_max = df[dcol].max().strftime("%d/%m/%Y") if pd.notna(df[dcol].max()) else "N/A"
-                    st.metric("Período Final", periodo_max)
 
 def page_kpis(tx):
     """
