@@ -1849,7 +1849,7 @@ def page_eco():
             <h4 style="color: #0C2D6B; margin-top: 0;">💰 SELIC</h4>
             <p style="color: #333; font-size: 14px; margin-bottom: 0;">
             <strong>Taxa Básica de Juros</strong> - Define o custo do crédito na economia. 
-            Juros altos reduzem o consumo e incentivam poupança.
+            Juros altos reducem o consumo e incentivam poupança.
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -2016,89 +2016,6 @@ def page_eco():
     else:
         st.warning("Não foi possível identificar colunas de 'Ano' ou 'Data' nos dados econômicos.")
         return
-
-    # NOVO: Cards com valores atuais dos indicadores
-    st.markdown("### 📊 Indicadores Atuais (2025)")
-    
-    if not eco_anual.empty and 2025 in eco_anual["Ano"].values:
-        dados_2025 = eco_anual[eco_anual["Ano"] == 2025].iloc[0]
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            selic_val = dados_2025.get("Selic", "N/A")
-            if selic_val != "N/A":
-                selic_trend = "↗️" if selic_val > 10.0 else "↘️" if selic_val < 10.0 else "➡️"
-                st.metric(
-                    label="💰 Taxa SELIC", 
-                    value=f"{selic_val}%",
-                    delta=f"{selic_trend} Taxa Básica de Juros",
-                    delta_color="inverse"
-                )
-        
-        with col2:
-            ipca_val = dados_2025.get("IPCA", "N/A")
-            if ipca_val != "N/A":
-                ipca_trend = "↗️" if ipca_val > 3.5 else "↘️" if ipca_val < 3.5 else "➡️"
-                st.metric(
-                    label="📊 IPCA (Inflação)", 
-                    value=f"{ipca_val}%",
-                    delta=f"{ipca_trend} Meta: 3.5%",
-                    delta_color="inverse"
-                )
-        
-        with col3:
-            inad_val = dados_2025.get("Inadimplencia", "N/A")
-            if inad_val != "N/A":
-                inad_trend = "↗️" if inad_val > 4.5 else "↘️" if inad_val < 4.5 else "➡️"
-                st.metric(
-                    label="⚠️ Inadimplência", 
-                    value=f"{inad_val}%",
-                    delta=f"{inad_trend} Média histórica",
-                    delta_color="inverse"
-                )
-
-    # NOVO: Análise de Impacto no Consumo
-    st.markdown("---")
-    st.subheader("🎯 Impacto no Consumo e Cupons")
-    
-    impact_col1, impact_col2, impact_col3 = st.columns(3)
-    
-    with impact_col1:
-        st.markdown("""
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0;">
-            <h5 style="color: #0C2D6B;">💳 SELIC Alta</h5>
-            <ul style="color: #333; font-size: 14px; padding-left: 20px;">
-            <li>Crédito mais caro</li>
-            <li>Consumo reduzido</li>
-            <li>Cupons de maior valor ganham importância</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with impact_col2:
-        st.markdown("""
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0;">
-            <h5 style="color: #DC2626;">📈 IPCA Elevado</h5>
-            <ul style="color: #333; font-size: 14px; padding-left: 20px;">
-            <li>Poder de compra reduzido</li>
-            <li>Busca por descontos aumenta</li>
-            <li>Cupons se tornam mais atrativos</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with impact_col3:
-        st.markdown("""
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0;">
-            <h5 style="color: #059669;">📉 Inadimplência Alta</h5>
-            <ul style="color: #333; font-size: 14px; padding-left: 20px;">
-            <li>Restrição ao crédito</li>
-            <li>Compras a vista preferidas</li>
-            <li>Cupons com cashback valorizados</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
 
     # Abas para visualização anual e mensal
     tab1, tab2 = st.tabs(["📊 Evolução Anual", "📈 Evolução Mensal"])
