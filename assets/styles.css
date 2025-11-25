@@ -1,4 +1,4 @@
-pode retirar a bola branca que quando passa o cursor na logo do sidebar?: /*  VARIÁVEIS DE CORES - PALETA OFICIAL  */
+/*  VARIÁVEIS DE CORES - PALETA OFICIAL  */
 /* 
   Aqui definimos as cores principais da nossa marca.
   Pense nestas variáveis como as "cores oficiais" do CupomGO.
@@ -15,6 +15,30 @@ pode retirar a bola branca que quando passa o cursor na logo do sidebar?: /*  VA
   --pm-sidebar: #1a247e;      /* Sidebar azul escuro */
   --pm-header: #FFFFFF;       /* Cabeçalho branco */
   --pm-sidebar-arrow: #56555c; /* Seta do sidebar cinza escuro */
+}
+
+/* REMOVIDO: Efeito de bolinha branca em TODAS as imagens */
+/* Remove o efeito de hover branco em todas as imagens da aplicação */
+.stImage img,
+.stImage:hover img,
+img,
+img:hover {
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+    transition: none !important;
+    cursor: default !important;
+}
+
+/* Remove especificamente o efeito de bolinha branca do Streamlit */
+.stImage > div > div {
+    background: transparent !important;
+}
+
+.stImage:hover > div > div {
+    background: transparent !important;
+    transform: none !important;
 }
 
 /*  CABEÇALHO DO STREAMLIT  */
