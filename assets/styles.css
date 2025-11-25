@@ -148,6 +148,20 @@
     color: #FFFFFF !important;  /* Texto branco */
 }
 
+/* REMOVIDO: Efeito de bolinha branca no logo do sidebar */
+/* Imagens no sidebar não terão efeito de hover */
+[data-testid="stSidebar"] .stImage img,
+[data-testid="stSidebar"] img {
+    transition: none !important;
+}
+
+[data-testid="stSidebar"] .stImage:hover img,
+[data-testid="stSidebar"] img:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+}
+
 /*  BOTÕES DO SIDEBAR */
 /* 
   Os botões de navegação dentro do sidebar.
